@@ -26,9 +26,8 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
         </p>
         <h1 className="mt-3 page-title">Restoring access</h1>
         <p className="mt-3 page-copy">
-          Maview restores the JWT session client-side before protected pages
-          render. Unauthenticated users are redirected onto dedicated auth
-          pages instead of modal overlays.
+          We’re checking your account before opening this page. If you are not
+          signed in, you will be redirected to the login screen.
         </p>
       </Card>
     );

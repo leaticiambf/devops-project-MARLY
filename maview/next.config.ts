@@ -2,7 +2,9 @@ import path from "node:path";
 
 import type { NextConfig } from "next";
 
-const backendOrigin = process.env.BACKEND_ORIGIN ?? "http://localhost:8080";
+import { getBackendOrigin } from "./lib/config/env";
+
+const backendOrigin = getBackendOrigin();
 const projectRoot = new URL(".", import.meta.url).pathname;
 
 const nextConfig: NextConfig = {

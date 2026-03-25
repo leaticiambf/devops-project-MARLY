@@ -25,6 +25,7 @@ import org.marly.mavigo.security.RequestOwnershipGuard;
 import org.marly.mavigo.service.user.UserService;
 import org.marly.mavigo.service.user.dto.GoogleAccountLink;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -71,6 +72,9 @@ public class GoogleTasksController {
     private final UserTaskRepository userTaskRepository;
     private final PrimApiClient primApiClient;
     private final RequestOwnershipGuard requestOwnershipGuard;
+
+    @Value("${app.frontend.base-url:http://localhost:3000}")
+    private String frontendBaseUrl = "http://localhost:3000";
 
     @Autowired
     public GoogleTasksController(
@@ -378,11 +382,23 @@ public class GoogleTasksController {
 
         try {
             User linkedUser = userService.linkGoogleAccount(userId, new GoogleAccountLink(subject, email));
-            String html = buildLinkSuccessHtml(linkedUser.getDisplayName(), linkedUser.getGoogleAccountEmail());
-            return ResponseEntity.ok().contentType(MediaType.TEXT_HTML).body(html);
+            String redirectUrl = buildFrontendLinkResultUrl(
+                    "/google-link-complete",
+                    linkedUser.getDisplayName(),
+                    linkedUser.getGoogleAccountEmail(),
+                    null);
+            return ResponseEntity.status(HttpStatus.FOUND)
+                    .header("Location", redirectUrl)
+                    .build();
         } catch (Exception e) {
-            String html = buildLinkErrorHtml(e.getMessage());
-            return ResponseEntity.status(HttpStatus.CONFLICT).contentType(MediaType.TEXT_HTML).body(html);
+            String redirectUrl = buildFrontendLinkResultUrl(
+                    "/google-link-error",
+                    null,
+                    null,
+                    e.getMessage());
+            return ResponseEntity.status(HttpStatus.FOUND)
+                    .header("Location", redirectUrl)
+                    .build();
         }
     }
 
@@ -609,73 +625,36 @@ public class GoogleTasksController {
         }
     }
 
-    private String buildLinkSuccessHtml(String displayName, String email) {
-        String escapedEmail = HtmlUtils.htmlEscape(email == null ? "unknown" : email);
-        String escapedName = HtmlUtils.htmlEscape(displayName == null ? "Unknown user" : displayName);
-        String jsEmail = escapeForJs(email == null ? "" : email);
+    private String buildFrontendLinkResultUrl(
+            String path,
+            String displayName,
+            String email,
+            String errorMessage) {
+        StringBuilder url = new StringBuilder(frontendBaseUrl);
+        if (!frontendBaseUrl.endsWith("/")) {
+            url.append("/");
+        }
+        url.append(path.startsWith("/") ? path.substring(1) : path);
 
-        return """
-                <!DOCTYPE html>
-                <html lang="en">
-                <head>
-                    <meta charset="UTF-8" />
-                    <title>Google Tasks Linked</title>
-                    <style>
-                        body { font-family: Arial, sans-serif; padding: 20px; background: #f7f7f7; }
-                        .card { background: #fff; border-radius: 8px; padding: 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
-                        button { padding: 8px 16px; font-size: 1rem; cursor: pointer; }
-                    </style>
-                </head>
-                <body>
-                    <div class="card">
-                        <h2>Google Tasks linked</h2>
-                        <p>User <strong>%s</strong> is now connected to <strong>%s</strong>.</p>
-                        <p>You can close this window.</p>
-                        <button onclick="window.close()">Close</button>
-                    </div>
-                    <script>
-                        if (window.opener) {
-                            window.opener.postMessage({ type: 'GOOGLE_TASKS_LINKED', email: '%s' }, window.location.origin);
-                        }
-                    </script>
-                </body>
-                </html>
-                """
-                .formatted(escapedName, escapedEmail, jsEmail);
+        List<String> params = new ArrayList<>();
+        if (StringUtils.hasText(displayName)) {
+            params.add("name=" + encodeQueryParam(displayName));
+        }
+        if (StringUtils.hasText(email)) {
+            params.add("email=" + encodeQueryParam(email));
+        }
+        if (StringUtils.hasText(errorMessage)) {
+            params.add("error=" + encodeQueryParam(errorMessage));
+        }
+
+        if (!params.isEmpty()) {
+            url.append("?").append(String.join("&", params));
+        }
+
+        return url.toString();
     }
 
-    private String escapeForJs(String value) {
-        if (value == null)
-            return "";
-        return value.replace("\\", "\\\\").replace("'", "\\'");
-    }
-
-    private String buildLinkErrorHtml(String errorMessage) {
-        String escapedError = HtmlUtils.htmlEscape(errorMessage == null ? "Unknown error" : errorMessage);
-
-        return """
-                <!DOCTYPE html>
-                <html lang="en">
-                <head>
-                    <meta charset="UTF-8" />
-                    <title>Google Tasks Link Failed</title>
-                    <style>
-                        body { font-family: Arial, sans-serif; padding: 20px; background: #f7f7f7; }
-                        .card { background: #fff; border-radius: 8px; padding: 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
-                        .error { color: #c0392b; }
-                        button { padding: 8px 16px; font-size: 1rem; cursor: pointer; }
-                    </style>
-                </head>
-                <body>
-                    <div class="card">
-                        <h2 class="error">Link Failed</h2>
-                        <p>%s</p>
-                        <p>This Google account may already be linked to another user.</p>
-                        <button onclick="window.close()">Close</button>
-                    </div>
-                </body>
-                </html>
-                """
-                .formatted(escapedError);
+    private String encodeQueryParam(String value) {
+        return java.net.URLEncoder.encode(value, java.nio.charset.StandardCharsets.UTF_8);
     }
 }

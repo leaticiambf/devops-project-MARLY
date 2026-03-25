@@ -2114,48 +2114,36 @@ private String extractLocationTag(TaskDto dto) {
 
 === Overview
 
-In v0.3, the frontend was significantly refactored from a monolithic `app.js` file (~2274 lines) into modular ES modules, improving maintainability and code organization.
+The frontend now lives in the separate `maview/` Next.js application and is served independently from the Spring Boot backend. Browser requests target the frontend origin, while Next rewrites API, OAuth callback, and logout routes to the backend.
 
 === Module Structure
 
-The JavaScript codebase is organized under `Mavigo/src/main/resources/static/js/`:
+The active frontend codebase is organized under `maview/`:
 
-==== Core Modules (`js/core/`)
-* **api.js** — API client for backend communication
-* **config.js** — Application configuration constants
-* **state.js** — Client-side state management
-* **utils.js** — Shared utility functions
+==== App Router (`maview/app/`)
+* Route entries for journey planning, tasks, eco score, authentication, and Google popup completion states
+* Route metadata and page composition for the user-facing application
 
-==== Feature Modules (`js/features/`)
-* **auth.js** — Authentication (login/register forms, JWT handling)
-* **badge-unlock.js** — Badge unlock notification animations
-* **comfort-profile.js** — Comfort profile management UI
-* **confetti.js** — Confetti animation effects for achievements
-* **disruption.js** — Disruption reporting interface
-* **eco-score.js** — Eco dashboard and CO2 tracking display
-* **google-link.js** — Google account linking flow
-* **home-address.js** — Home address setting/update
-* **journey.js** — Journey planning and display
-* **nav.js** — Navigation and routing
-* **smart-suggestions.js** — Smart task suggestion cards
-* **task-notifications.js** — Task notification system
-* **tasks.js** — Google Tasks management
-* **user-dropdown.js** — User menu and profile dropdown
+==== Feature Modules (`maview/features/`)
+* **journey/** — Journey planning, current journey state, disruptions, comfort preferences, and smart suggestions
+* **tasks/** — Google Tasks linking, list loading, completion, deletion, and route-aware suggestions
+* **eco-score/** — Eco dashboard, badge display, and score history
 
-==== UI Modules (`js/ui/`)
-* **tasks-modal.js** — Tasks modal dialog
-* **theme.js** — Light/dark theme switching
-* **toast.js** — Toast notification system
+==== Shared UI and State (`maview/components/`, `maview/providers/`, `maview/lib/`)
+* Auth/session restoration and logout
+* Typed API wrappers and environment-aware frontend/backend routing
+* Reusable cards, buttons, state panels, toasts, and layout primitives
 
 === SPA-Style Routing
 
-`FrontendController` handles client-side routing by forwarding URL paths to `index.html`:
+`FrontendController` now redirects legacy backend-served UI paths to the external frontend base URL:
 
-* `/search` → `forward:/index.html`
-* `/tasks` → `forward:/index.html`
-* `/results` → `forward:/index.html`
+* `/` → `redirect:${app.frontend.base-url}`
+* `/search` → `redirect:${app.frontend.base-url}/search`
+* `/tasks` → `redirect:${app.frontend.base-url}/tasks`
+* `/results` → `redirect:${app.frontend.base-url}/results`
 
-This enables direct URL access and browser back/forward navigation without full page reloads.
+This keeps old backend entrypoints from breaking while the Next.js frontend remains the primary UI.
 
 == Installation Guide
 

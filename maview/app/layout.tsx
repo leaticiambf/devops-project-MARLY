@@ -1,18 +1,19 @@
 import type { Metadata } from "next";
 
 import { AppShell } from "@/components/layout/app-shell";
+import { getAppUrl } from "@/lib/config/env";
 import { AppProviders } from "@/providers/app-providers";
 
 import "./globals.css";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("http://localhost:3000"),
+  metadataBase: new URL(getAppUrl()),
   title: {
-    default: "Maview",
-    template: "%s | Maview",
+    default: "Mavigo",
+    template: "%s | Mavigo",
   },
   description:
-    "Incremental Next.js frontend for Mavigo, preserving the existing Spring backend and OAuth flows.",
+    "Plan public transport journeys, coordinate tasks, and track greener travel choices with Mavigo.",
 };
 
 export default function RootLayout({

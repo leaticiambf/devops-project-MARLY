@@ -38,11 +38,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   Mavigo
                 </p>
                 <p className="text-lg font-semibold tracking-tight text-slate-900">
-                  Frontend Migration
+                  Paris journey companion
                 </p>
               </div>
             </Link>
-            <Badge variant="accent">Next.js App Router</Badge>
+            <Badge variant="accent">Live planning</Badge>
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -67,7 +67,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </nav>
 
             {isRestoring ? (
-              <Badge variant="muted">Restoring session</Badge>
+              <Badge variant="muted">Restoring access</Badge>
             ) : isAuthenticated && user ? (
               <div className="flex flex-wrap items-center gap-3">
                 <div className="rounded-full bg-white/80 px-4 py-2 text-right">
@@ -77,9 +77,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <p className="text-xs text-slate-500">{user.email}</p>
                 </div>
                 {user.googleAccountLinked ? (
-                  <Badge variant="success">Google linked</Badge>
+                  <Badge variant="success">Google Tasks connected</Badge>
                 ) : (
-                  <Badge variant="muted">Google pending</Badge>
+                  <Badge variant="muted">Google Tasks optional</Badge>
                 )}
                 <Button variant="ghost" onClick={handleLogout}>
                   Log out

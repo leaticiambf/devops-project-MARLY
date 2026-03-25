@@ -1,36 +1,62 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Mavigo Frontend
 
-## Getting Started
+`maview/` is the active Next.js frontend for Mavigo. The folder name stays `maview`, but the product name shown to users is Mavigo.
 
-First, run the development server:
+## Stack
+
+- Next.js 16 App Router
+- React 19
+- TanStack Query
+- Vitest for a few targeted unit tests
+- Playwright for a lightweight smoke suite
+
+## Required Environment
+
+Copy `maview/.env.example` to `maview/.env.local` and set:
+
+- `BACKEND_ORIGIN`: backend origin, usually `http://localhost:8080` in local development
+- `NEXT_PUBLIC_APP_URL`: public frontend origin, usually `http://localhost:3000`
+
+Production builds require both values explicitly. The app no longer silently defaults to localhost values in production mode.
+
+## Local Development
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The frontend expects the backend to already be running on the configured `BACKEND_ORIGIN`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `pnpm dev`
+- `pnpm lint`
+- `pnpm typecheck`
+- `pnpm test`
+- `pnpm build`
+- `pnpm test:e2e`
 
-## Learn More
+## Frontend Routing Model
 
-To learn more about Next.js, take a look at the following resources:
+- UI pages are rendered by Next.js
+- Browser requests stay on the frontend origin
+- Next rewrites API, OAuth callback, and logout paths to the Spring backend
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Rewritten paths:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- `/api/:path*`
+- `/oauth2/:path*`
+- `/login/oauth2/:path*`
+- `/logout`
 
-## Deploy on Vercel
+## Authentication Behavior
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- App login and registration store the JWT locally
+- Protected pages restore the session client-side from `localStorage`
+- Google Tasks linking still relies on the backend-managed Spring session
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Testing
+
+- Vitest covers utility and API client behavior
+- Playwright covers a small browser-level smoke path for auth, the main journey flow, and protected page rendering

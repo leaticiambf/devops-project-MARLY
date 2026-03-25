@@ -63,7 +63,7 @@ export function RegisterForm() {
         await registerUser(values);
         toast({
           title: "Account created",
-          description: "Maview stored the fresh JWT and hydrated the user.",
+          description: "Your account is ready to use.",
           variant: "success",
         });
         router.push(searchParams.get("next") || "/");
@@ -85,7 +85,7 @@ export function RegisterForm() {
           Register
         </p>
         <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">
-          Start with the new frontend shell
+          Start planning with confidence
         </h2>
       </div>
 
@@ -116,7 +116,7 @@ export function RegisterForm() {
       />
       <Input
         label="Home address"
-        hint="Optional. Used by smart suggestions and upcoming journey prefills."
+        hint="Optional. Used to prefill future journey suggestions."
         error={errors.homeAddress?.message}
         {...register("homeAddress")}
       />

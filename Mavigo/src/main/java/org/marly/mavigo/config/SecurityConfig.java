@@ -74,8 +74,17 @@ public class SecurityConfig {
             OAuth2AuthorizationRequestResolver googleAuthRequestResolver) throws Exception {
         http
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/", "/search", "/tasks", "/results", "/index.html", "/app.js", "/js/**",
-                                "/style.css", "/favicon.ico", "/images/**")
+                        .requestMatchers(
+                                "/",
+                                "/search",
+                                "/tasks",
+                                "/results",
+                                "/login",
+                                "/register",
+                                "/eco-score",
+                                "/google-link-complete",
+                                "/google-link-error",
+                                "/favicon.ico")
                         .permitAll()
                         .requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info")
                         .permitAll()

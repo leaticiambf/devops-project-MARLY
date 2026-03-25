@@ -43,7 +43,7 @@ export function LoginForm() {
         await login(values);
         toast({
           title: "Signed in",
-          description: "JWT session restored for the Next frontend.",
+          description: "Your account is ready.",
           variant: "success",
         });
         router.push(searchParams.get("next") || "/");
@@ -65,7 +65,7 @@ export function LoginForm() {
           Login
         </p>
         <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">
-          Back to your journeys
+          Back to your trips
         </h2>
       </div>
 

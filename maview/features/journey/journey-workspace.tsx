@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { StatePanel } from "@/components/ui/state-panel";
 import { googleTasksApi } from "@/lib/api/google";
 import { journeysApi } from "@/lib/api/journeys";
 import { usersApi } from "@/lib/api/users";
@@ -83,6 +84,12 @@ type ComfortFormState = {
   maxWaitingDuration: string;
   maxWalkingDuration: string;
   wheelchairAccessible: boolean;
+};
+
+type PlanningOutcome = {
+  journeys: JourneyResponse[];
+  fallbackUsed: boolean;
+  taskOptimizationAttempted: boolean;
 };
 
 const defaultComfortForm: ComfortFormState = {
@@ -342,7 +349,7 @@ export function JourneyWorkspace() {
   });
 
   const planJourney = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (): Promise<PlanningOutcome> => {
       if (!user?.userId || !token) {
         throw new Error("An authenticated session is required.");
       }
@@ -381,6 +388,7 @@ export function JourneyWorkspace() {
 
       let requestPayload: JourneyPlanRequest = payload;
       let attemptedTaskOptimization = false;
+      let fallbackUsed = false;
       if (planner.includeTaskOptimization && googleLinked) {
         const taskDetails = await googleTasksApi.getTasksForJourney(user.userId, token);
         if (taskDetails.length) {
@@ -397,24 +405,43 @@ export function JourneyWorkspace() {
 
       const journeys = await journeysApi.plan(requestPayload, token);
       if (!journeys.length && attemptedTaskOptimization) {
-        return journeysApi.plan(payload, token);
+        fallbackUsed = true;
+        return {
+          journeys: await journeysApi.plan(payload, token),
+          fallbackUsed,
+          taskOptimizationAttempted: attemptedTaskOptimization,
+        };
       }
-      return journeys;
+      return {
+        journeys,
+        fallbackUsed,
+        taskOptimizationAttempted: attemptedTaskOptimization,
+      };
     },
-    onSuccess: (journeys) => {
+    onSuccess: ({ journeys, fallbackUsed, taskOptimizationAttempted }) => {
       setCurrentJourney(null);
       setResults(journeys);
       setDisruptionMode(null);
       setJourneyMessage(
         journeys.length
-          ? `${journeys.length} journey option${journeys.length > 1 ? "s" : ""} loaded.`
-          : "No journey found.",
+          ? fallbackUsed
+            ? `No suitable errand stop was found, so we loaded ${journeys.length} direct trip option${journeys.length > 1 ? "s" : ""} instead.`
+            : `${journeys.length} trip option${journeys.length > 1 ? "s" : ""} ready to review.`
+          : taskOptimizationAttempted
+            ? "No route matched these constraints, even after retrying without errand stops."
+            : "No trip matched these details.",
       );
       if (!journeys.length) {
         toast({
-          title: "No journey found",
-          description: "Try relaxing the constraints or removing the via stop.",
+          title: "No trip found",
+          description: "Try a nearby station, a different time, or fewer constraints.",
           variant: "error",
+        });
+      } else if (fallbackUsed) {
+        toast({
+          title: "Errand stop skipped",
+          description: "We could not fit a task stop into this route, so standard trip options are shown instead.",
+          variant: "success",
         });
       }
     },
@@ -442,10 +469,10 @@ export function JourneyWorkspace() {
     onSuccess: (journey) => {
       setCurrentJourney(journey);
       setResults([]);
-      setJourneyMessage("Journey started. Current trip is now tracked above.");
+      setJourneyMessage("Your live journey is now being tracked above.");
       toast({
         title: "Journey started",
-        description: "Completion, cancellation, and disruption actions are now available.",
+        description: "You can now complete it, cancel it, or report a disruption.",
         variant: "success",
       });
     },
@@ -476,7 +503,7 @@ export function JourneyWorkspace() {
         description:
           journey.newBadges.length > 0
             ? `${journey.newBadges.length} new badge(s) unlocked.`
-            : "The journey lifecycle closed cleanly.",
+            : "Nice work. Your progress has been saved.",
         variant: "success",
       });
       void queryClient.invalidateQueries({ queryKey: ["eco-dashboard"] });
@@ -501,7 +528,7 @@ export function JourneyWorkspace() {
       );
       toast({
         title: "Journey cancelled",
-        description: "You can plan a fresh itinerary immediately.",
+        description: "You can plan a new trip whenever you are ready.",
         variant: "success",
       });
     },
@@ -524,15 +551,15 @@ export function JourneyWorkspace() {
       setDisruptionMode(null);
       setJourneyMessage(
         result.alternatives.length
-          ? `Disruption reported on ${result.disruptionType.toLowerCase()}. Choose a reroute below.`
-          : "Disruption reported, but no reroute was found.",
+          ? `We found new route options after the ${result.disruptionType.toLowerCase()} disruption.`
+          : "The disruption was recorded, but no good alternative was available right now.",
       );
       toast({
         title: "Disruption reported",
         description:
           result.alternatives.length > 0
-            ? "Alternative routes are ready."
-            : "No alternative route was available.",
+            ? "Review the new route options below."
+            : "Stay put for now or plan a fresh trip manually.",
         variant: "success",
       });
     },
@@ -559,15 +586,15 @@ export function JourneyWorkspace() {
       setDisruptionMode(null);
       setJourneyMessage(
         result.alternatives.length
-          ? "Station disruption reported. Reroute options are listed below."
-          : "Station disruption reported, but no reroute was found.",
+          ? "We found new route options after the station issue."
+          : "The station issue was recorded, but no alternative route was available.",
       );
       toast({
         title: "Station disruption reported",
         description:
           result.alternatives.length > 0
-            ? "A reroute is ready to start."
-            : "No alternative route was available.",
+            ? "A revised route is ready to review."
+            : "Try adjusting the trip details or checking again shortly.",
         variant: "success",
       });
     },
@@ -592,6 +619,42 @@ export function JourneyWorkspace() {
     () => (suggestionsQuery.data ?? []).filter((task) => task.locationQuery),
     [suggestionsQuery.data],
   );
+
+  const plannerIssues = useMemo(() => {
+    const issues: string[] = [];
+
+    if (!planner.originQuery.trim()) {
+      issues.push("Add a departure point.");
+    }
+    if (!planner.destinationQuery.trim()) {
+      issues.push("Add a destination.");
+    }
+    if (!planner.departureTime) {
+      issues.push("Choose a departure time.");
+    }
+    if (
+      planner.intermediateQuery &&
+      planner.intermediateDepartureTime &&
+      planner.intermediateDepartureTime <= planner.departureTime
+    ) {
+      issues.push("Your stopover departure must be later than the first departure.");
+    }
+
+    return issues;
+  }, [planner]);
+
+  const plannerNotices = useMemo(() => {
+    const notices: string[] = [];
+
+    if (planner.intermediateQuery && !planner.intermediateDepartureTime) {
+      notices.push("Add a stopover departure time if you want the planner to respect that stop precisely.");
+    }
+    if (planner.includeTaskOptimization && !googleLinked) {
+      notices.push("Connect Google Tasks to include errands in route planning.");
+    }
+
+    return notices;
+  }, [googleLinked, planner]);
 
   function updatePlanner<K extends keyof PlannerState>(key: K, value: PlannerState[K]) {
     setPlanner((current) => ({
@@ -621,7 +684,7 @@ export function JourneyWorkspace() {
     }));
     toast({
       title: "Planner prefilled",
-      description: "The journey form was filled from tomorrow's task suggestion.",
+      description: "Tomorrow's suggestion has been added to the planner.",
       variant: "success",
     });
   }
@@ -647,15 +710,15 @@ export function JourneyWorkspace() {
       <section className="grid gap-6 xl:grid-cols-[1.3fr_0.7fr]">
         <Card>
           <div className="flex flex-wrap items-center gap-3">
-            <Badge variant="accent">Core Journey</Badge>
+            <Badge variant="accent">Journey Planner</Badge>
             <Badge variant={googleLinked ? "success" : "muted"}>
-              {googleLinked ? "Google Ready" : "Google Optional"}
+              {googleLinked ? "Task-aware planning ready" : "Task sync optional"}
             </Badge>
           </div>
-          <h1 className="mt-5 page-title">Plan, start, and adapt a real journey</h1>
+          <h1 className="mt-5 page-title">Plan, start, and adapt each trip with confidence</h1>
           <p className="mt-4 page-copy">
-            This page now covers the heavy migration path: typed payload construction,
-            task optimization, current-journey lifecycle, and disruption rerouting.
+            Build your route, apply saved comfort preferences, include errands
+            when they fit, and respond quickly if the journey changes.
           </p>
 
           <div className="mt-8 grid gap-4 md:grid-cols-2">
@@ -705,7 +768,7 @@ export function JourneyWorkspace() {
                 }
                 className="rounded-3xl border border-line bg-white/90 px-4 py-3 text-sm outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
               >
-                <option value="">Disabled</option>
+                <option value="">No preset</option>
                 {(comfortSettingsQuery.data ?? []).map((setting) => (
                   <option key={setting.id} value={setting.id}>
                     {setting.name}
@@ -724,7 +787,7 @@ export function JourneyWorkspace() {
                   updatePlanner("ecoModeEnabled", event.target.checked)
                 }
               />
-              Green mode
+              Eco mode
             </label>
             <label className="flex items-center gap-3 rounded-full bg-white/70 px-4 py-2">
               <input
@@ -744,12 +807,15 @@ export function JourneyWorkspace() {
                   updatePlanner("includeTaskOptimization", event.target.checked)
                 }
               />
-              Optimize with Google Tasks
+              Include Google Tasks stops
             </label>
           </div>
 
           <div className="mt-6 flex flex-wrap gap-3">
-            <Button onClick={() => planJourney.mutate()} disabled={planJourney.isPending}>
+            <Button
+              onClick={() => planJourney.mutate()}
+              disabled={planJourney.isPending || plannerIssues.length > 0}
+            >
               {planJourney.isPending ? "Planning..." : "Plan journey"}
             </Button>
             <Button
@@ -766,16 +832,38 @@ export function JourneyWorkspace() {
           </div>
 
           {journeyMessage ? (
-            <div className="mt-6 rounded-[24px] bg-white/75 px-5 py-4 text-sm text-slate-700">
-              {journeyMessage}
-            </div>
+            <StatePanel
+              className="mt-6"
+              eyebrow="Planner update"
+              title={journeyMessage}
+            />
+          ) : null}
+
+          {plannerIssues.length ? (
+            <StatePanel
+              className="mt-4"
+              eyebrow="Need to fix"
+              title="Your trip details need a quick adjustment"
+              description={plannerIssues.join(" ")}
+              tone="danger"
+            />
+          ) : null}
+
+          {plannerNotices.length ? (
+            <StatePanel
+              className="mt-4"
+              eyebrow="Helpful note"
+              title="A small change could improve this trip"
+              description={plannerNotices.join(" ")}
+              tone="success"
+            />
           ) : null}
         </Card>
 
         <Card className="grid gap-5">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
-              Session Status
+              Your Account
             </p>
             <h2 className="mt-3 text-2xl font-semibold text-slate-950">
               {user.displayName}
@@ -822,8 +910,8 @@ export function JourneyWorkspace() {
             </p>
             <p className="mt-3 text-sm leading-6 text-white/80">
               {googleLinked
-                ? user.googleAccountEmail || "Google Tasks linked"
-                : "Link Google Tasks on the Tasks page to enable route optimization and smart suggestions."}
+                ? user.googleAccountEmail || "Google Tasks connected"
+                : "Connect Google Tasks on the Tasks page to unlock errand-aware planning and smart suggestions."}
             </p>
           </div>
         </Card>
@@ -836,7 +924,7 @@ export function JourneyWorkspace() {
               <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
                 Comfort Presets
               </p>
-              <h2 className="mt-2 text-2xl font-semibold">Named travel preferences</h2>
+              <h2 className="mt-2 text-2xl font-semibold">Saved travel preferences</h2>
             </div>
             <Button variant="ghost" onClick={() => startEditingSetting()}>
               New preset
@@ -867,7 +955,7 @@ export function JourneyWorkspace() {
               ))
             ) : (
               <p className="rounded-[24px] bg-white/70 p-4 text-sm text-slate-600">
-                No saved comfort presets yet.
+                Save a preset to reuse your preferred route style in one click.
               </p>
             )}
           </div>
@@ -880,7 +968,7 @@ export function JourneyWorkspace() {
                     {editingComfortId ? "Edit preset" : "Create preset"}
                   </p>
                   <h3 className="mt-2 text-xl font-semibold">
-                    {editingComfortId ? "Update comfort preset" : "Save a reusable comfort preset"}
+                    {editingComfortId ? "Update comfort preset" : "Create a reusable comfort preset"}
                   </h3>
                 </div>
                 <Button variant="ghost" onClick={clearComfortEditor}>
@@ -1017,20 +1105,24 @@ export function JourneyWorkspace() {
               <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
                 Smart Suggestions
               </p>
-              <h2 className="mt-2 text-2xl font-semibold">Tomorrow&apos;s task prompts</h2>
+              <h2 className="mt-2 text-2xl font-semibold">Tomorrow&apos;s likely trips</h2>
             </div>
             <Badge variant="accent">{formatTaskDateOnly(getTomorrowDateString())}</Badge>
           </div>
 
           <div className="mt-5 grid gap-3">
             {!googleLinked ? (
-              <p className="rounded-[24px] bg-white/70 p-4 text-sm text-slate-600">
-                Google Tasks must be linked before suggestions can be generated.
-              </p>
+              <StatePanel
+                title="Connect Google Tasks to unlock suggestions"
+                description="When your Google account is linked, tomorrow’s likely trips will appear here."
+                tone="warning"
+              />
             ) : suggestionsQuery.isLoading ? (
-              <p className="rounded-[24px] bg-white/70 p-4 text-sm text-slate-600">
-                Loading suggestions...
-              </p>
+              <StatePanel
+                eyebrow="Loading"
+                title="Looking ahead to tomorrow"
+                description="We’re checking your upcoming tasks for trip ideas."
+              />
             ) : suggestions.length ? (
               suggestions.map((task) => (
                 <div
@@ -1054,9 +1146,10 @@ export function JourneyWorkspace() {
                 </div>
               ))
             ) : (
-              <p className="rounded-[24px] bg-white/70 p-4 text-sm text-slate-600">
-                No location-tagged tasks are due tomorrow.
-              </p>
+              <StatePanel
+                title="No suggested trip for tomorrow yet"
+                description="As soon as tomorrow’s tasks contain useful route details, they’ll appear here."
+              />
             )}
           </div>
         </Card>
@@ -1067,15 +1160,15 @@ export function JourneyWorkspace() {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.28em] text-amber-800">
-                Comfort Onboarding
+                Travel Preferences
               </p>
               <h2 className="mt-2 text-2xl font-semibold">
                 Save one travel profile before your next trip
               </h2>
               <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-700">
-                The legacy app nudged users into saving comfort preferences early.
-                This migration keeps that onboarding behavior, but turns it into a
-                proper inline flow instead of a modal-heavy prompt chain.
+                Save one preset now if you regularly prefer fewer transfers,
+                wheelchair-friendly routes, or air-conditioned journeys. You can
+                skip this and add one later at any time.
               </p>
             </div>
             <div className="flex gap-3">
@@ -1101,7 +1194,8 @@ export function JourneyWorkspace() {
         <section className="grid gap-6 xl:grid-cols-[1fr_0.9fr]">
           <Card>
             <div className="flex flex-wrap items-center gap-3">
-              <Badge variant="success">{currentJourney.status}</Badge>
+              <Badge variant="success">Live journey</Badge>
+              <Badge variant="muted">{currentJourney.status}</Badge>
               {currentJourney.disruptionCount > 0 ? (
                 <Badge variant="accent">
                   {currentJourney.disruptionCount} disruption{currentJourney.disruptionCount > 1 ? "s" : ""}
@@ -1184,20 +1278,23 @@ export function JourneyWorkspace() {
 
           <Card>
             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
-              Disruption Workflow
+              Disruption Support
             </p>
             <h3 className="mt-2 text-2xl font-semibold">
               {disruptionMode === "line"
-                ? "Select disrupted line"
+                ? "Choose the affected line"
                 : disruptionMode === "station"
-                  ? "Select disrupted station"
-                  : "Ready for incident reporting"}
+                  ? "Choose the affected station"
+                  : "Report an issue if this trip changes"}
             </h3>
 
             {disruptionMode === "line" ? (
               <div className="mt-5 grid gap-3">
                 {linesQuery.isLoading ? (
-                  <p className="text-sm text-slate-600">Loading journey lines...</p>
+                  <StatePanel
+                    title="Loading journey lines"
+                    description="Choose the affected line as soon as this list is ready."
+                  />
                 ) : linesQuery.data?.length ? (
                   linesQuery.data.map((line: LineInfo) => (
                     <button
@@ -1222,15 +1319,19 @@ export function JourneyWorkspace() {
                     </button>
                   ))
                 ) : (
-                  <p className="text-sm text-slate-600">
-                    No transit line could be extracted from the current journey.
-                  </p>
+                  <StatePanel
+                    title="No line can be reported here"
+                    description="This journey does not expose a supported line for disruption reporting."
+                  />
                 )}
               </div>
             ) : disruptionMode === "station" ? (
               <div className="mt-5 grid gap-3">
                 {stopsQuery.isLoading ? (
-                  <p className="text-sm text-slate-600">Loading journey stops...</p>
+                  <StatePanel
+                    title="Loading journey stops"
+                    description="Choose the affected stop as soon as this list is ready."
+                  />
                 ) : stopsQuery.data?.length ? (
                   stopsQuery.data.map((stop: StopInfo) => (
                     <button
@@ -1247,16 +1348,18 @@ export function JourneyWorkspace() {
                     </button>
                   ))
                 ) : (
-                  <p className="text-sm text-slate-600">
-                    No station could be extracted from the current journey.
-                  </p>
+                  <StatePanel
+                    title="No stop can be reported here"
+                    description="This journey does not expose a supported stop for disruption reporting."
+                  />
                 )}
               </div>
             ) : (
-              <p className="mt-5 text-sm leading-6 text-slate-600">
-                Use the buttons on the left to select a line or station disruption.
-                The resulting reroute options will replace the current journey panel.
-              </p>
+              <StatePanel
+                className="mt-5"
+                title="Ready to report a change"
+                description="Use the controls on the left to report a line or station issue. If we find an alternative, new trip options will appear below."
+              />
             )}
           </Card>
         </section>
@@ -1266,7 +1369,7 @@ export function JourneyWorkspace() {
         <div className="flex items-center justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
-              Journey Results
+              Trip Options
             </p>
             <h2 className="mt-2 text-2xl font-semibold">Available itineraries</h2>
           </div>
@@ -1284,7 +1387,7 @@ export function JourneyWorkspace() {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-3">
                     <Badge variant="muted">Option {index + 1}</Badge>
-                    {planner.ecoModeEnabled ? <Badge variant="success">Green mode</Badge> : null}
+                    {planner.ecoModeEnabled ? <Badge variant="success">Eco mode</Badge> : null}
                     {planner.namedComfortSettingId ? (
                       <Badge variant="accent">Comfort preset</Badge>
                     ) : null}
@@ -1314,7 +1417,7 @@ export function JourneyWorkspace() {
                   {journey.tasksOnRoute.length ? (
                     <div className="mt-4 rounded-[24px] bg-brand-soft p-4">
                       <p className="text-xs font-semibold uppercase tracking-[0.24em] text-brand-strong">
-                        Tasks On Route
+                        Nearby tasks
                       </p>
                       <div className="mt-3 grid gap-2">
                         {journey.tasksOnRoute.map((task) => (
@@ -1378,10 +1481,11 @@ export function JourneyWorkspace() {
           ))
         ) : (
           <Card>
-            <p className="text-sm leading-6 text-slate-600">
-              `pnpm dev` will now show a usable planner here. Run a query above to
-              load real itineraries from the Spring backend.
-            </p>
+            <StatePanel
+              eyebrow="No trip yet"
+              title="Your next route will appear here"
+              description="Plan a trip above to compare options, timings, and nearby errands that fit along the way."
+            />
           </Card>
         )}
       </section>

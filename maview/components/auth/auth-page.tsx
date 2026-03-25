@@ -51,12 +51,12 @@ export function AuthPage({
         </div>
         <div className="grid gap-4 text-sm text-slate-600">
           <p>
-            `/api/*`, `/oauth2/*`, `/login/oauth2/*`, and `/logout` stay on the
-            same frontend origin through Next rewrites.
+            Build everyday trips faster, keep your errands close to the route,
+            and keep your travel preferences in one place.
           </p>
           <p>
-            Google Tasks remains Spring-session-based in v1, while the main app
-            API keeps JWT in `localStorage`.
+            Use the same Mavigo account across journey planning, task syncing,
+            and your eco score dashboard.
           </p>
         </div>
       </div>

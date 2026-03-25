@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { StatePanel } from "@/components/ui/state-panel";
 import { googleTasksApi } from "@/lib/api/google";
 import {
   formatTaskDateOnly,
@@ -77,7 +78,7 @@ export function TasksWorkspace() {
     onSuccess: async () => {
       toast({
         title: "Task completed",
-        description: "Google Tasks was updated through the Spring proxy.",
+        description: "The task was marked as done.",
         variant: "success",
       });
       await queryClient.invalidateQueries({ queryKey: ["google-tasks"] });
@@ -103,7 +104,7 @@ export function TasksWorkspace() {
     onSuccess: async () => {
       toast({
         title: "Task deleted",
-        description: "The default Google list was refreshed.",
+        description: "The task was removed from your list.",
         variant: "success",
       });
       await queryClient.invalidateQueries({ queryKey: ["google-tasks"] });
@@ -127,8 +128,8 @@ export function TasksWorkspace() {
         void refreshUser();
         void queryClient.invalidateQueries({ queryKey: ["google-default-list"] });
         toast({
-          title: "Google linked",
-          description: "The popup completed and session state was refreshed.",
+          title: "Google Tasks connected",
+          description: "Your task list is ready to use.",
           variant: "success",
         });
       }
@@ -143,9 +144,9 @@ export function TasksWorkspace() {
       return "No authenticated user.";
     }
     if (!googleLinked) {
-      return "Google Tasks not linked yet.";
+      return "Connect Google Tasks to sync errands and route-aware reminders.";
     }
-    return user.googleAccountEmail || "Linked through Spring OAuth.";
+    return user.googleAccountEmail || "Google Tasks is connected.";
   }, [googleLinked, user]);
 
   function openGooglePopup() {
@@ -161,7 +162,7 @@ export function TasksWorkspace() {
     if (!popup) {
       toast({
         title: "Popup blocked",
-        description: "Allow popups to complete Google Tasks linking.",
+        description: "Allow popups to finish connecting Google Tasks.",
         variant: "error",
       });
     }
@@ -173,15 +174,15 @@ export function TasksWorkspace() {
         <Card>
           <div className="flex flex-wrap items-center gap-3">
             <Badge variant={googleLinked ? "success" : "accent"}>
-              {googleLinked ? "Google Linked" : "Google Pending"}
+              {googleLinked ? "Google Tasks connected" : "Connection needed"}
             </Badge>
-            <Badge variant="muted">Popup OAuth</Badge>
+            <Badge variant="muted">Task sync</Badge>
           </div>
-          <h1 className="mt-5 page-title">Google Tasks stays same-origin</h1>
+          <h1 className="mt-5 page-title">Keep your errands close to the route</h1>
           <p className="mt-4 page-copy">
-            This page validates the migration’s hardest substrate: the popup
-            flow still talks to Spring OAuth endpoints, but the browser only sees
-            the frontend origin.
+            Connect Google Tasks to bring your default list into Mavigo, complete
+            errands from the app, and make route planning aware of what you need
+            to get done.
           </p>
           <div className="mt-6 rounded-[24px] bg-white/75 p-5">
             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
@@ -189,8 +190,8 @@ export function TasksWorkspace() {
             </p>
             <p className="mt-2 text-sm leading-6 text-slate-700">{linkedStatus}</p>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              The popup still uses the Spring OAuth session, but the browser only
-              ever talks to the frontend origin.
+              Once connected, Mavigo can load your tasks, suggest tomorrow&apos;s
+              trips, and include eligible stops in route planning.
             </p>
           </div>
           <div className="mt-6 flex flex-wrap gap-3">
@@ -209,10 +210,10 @@ export function TasksWorkspace() {
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
-                Default List
+                Main Task List
               </p>
               <h2 className="mt-2 text-2xl font-semibold">
-                {defaultListQuery.data?.title || "Waiting for link"}
+                {defaultListQuery.data?.title || "Connect Google Tasks to load a list"}
               </h2>
             </div>
             <label className="flex items-center gap-3 rounded-full bg-white/70 px-4 py-2 text-sm font-medium text-slate-700">
@@ -226,22 +227,44 @@ export function TasksWorkspace() {
           </div>
 
           {defaultListQuery.isLoading ? (
-            <p className="mt-6 text-sm text-slate-600">Loading default list...</p>
+            <StatePanel
+              className="mt-6"
+              eyebrow="Loading"
+              title="Opening your task list"
+              description="We’re fetching your main Google Tasks list."
+            />
           ) : defaultListQuery.error ? (
-            <p className="mt-6 text-sm text-danger">
-              {defaultListQuery.error.message}
-            </p>
+            <StatePanel
+              className="mt-6"
+              eyebrow="Task list unavailable"
+              title="We couldn’t load your task list"
+              description={defaultListQuery.error.message}
+              tone="danger"
+            />
           ) : !googleLinked ? (
-            <p className="mt-6 text-sm text-slate-600">
-              Link a Google account to load task data through the proxy.
-            </p>
+            <StatePanel
+              className="mt-6"
+              eyebrow="Connection required"
+              title="Connect Google Tasks first"
+              description="Once linked, your main task list will appear here."
+              tone="warning"
+            />
           ) : null}
 
           <div className="mt-6 grid gap-4">
             {tasksQuery.isLoading ? (
-              <p className="text-sm text-slate-600">Loading tasks...</p>
+              <StatePanel
+                eyebrow="Loading"
+                title="Fetching tasks"
+                description="Your list is on the way."
+              />
             ) : tasksQuery.error ? (
-              <p className="text-sm text-danger">{tasksQuery.error.message}</p>
+              <StatePanel
+                eyebrow="Tasks unavailable"
+                title="We couldn’t load this task list"
+                description={tasksQuery.error.message}
+                tone="danger"
+              />
             ) : tasksQuery.data?.length ? (
               tasksQuery.data.map((task) => {
                 const completed = isTaskCompleted(task);
@@ -257,8 +280,8 @@ export function TasksWorkspace() {
                         </h3>
                         <p className="mt-2 text-sm text-slate-600">
                           {task.locationQuery
-                            ? `#mavigo: ${task.locationQuery}`
-                            : "No Mavigo location tag"}
+                            ? `Route tag: ${task.locationQuery}`
+                            : "No route tag added yet"}
                         </p>
                         <p className="mt-2 text-sm text-slate-500">
                           {taskCompletedLabel(task)}
@@ -285,9 +308,11 @@ export function TasksWorkspace() {
                 );
               })
             ) : (
-              <p className="text-sm text-slate-600">
-                No tasks loaded from the default Google list.
-              </p>
+              <StatePanel
+                eyebrow="Nothing queued"
+                title="No tasks in this list yet"
+                description="Add a task in Google Tasks and refresh this page to bring it into Mavigo."
+              />
             )}
           </div>
         </Card>
@@ -298,26 +323,31 @@ export function TasksWorkspace() {
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
-                Journey Optimization Feed
+                Route Planning Feed
               </p>
               <h2 className="mt-2 text-2xl font-semibold">
-                Tasks with `#mavigo:` locations
+                Tasks ready for route planning
               </h2>
             </div>
             <Badge variant="accent">
-              {journeyTasksQuery.data?.length ?? 0} usable
+              {journeyTasksQuery.data?.length ?? 0} ready
             </Badge>
           </div>
 
           <div className="mt-5 grid gap-3">
             {journeyTasksQuery.isLoading ? (
-              <p className="text-sm text-slate-600">
-                Loading task-optimization candidates...
-              </p>
+              <StatePanel
+                eyebrow="Loading"
+                title="Checking route-ready tasks"
+                description="We’re looking for tasks with enough location detail to appear in planning."
+              />
             ) : journeyTasksQuery.error ? (
-              <p className="text-sm text-danger">
-                {journeyTasksQuery.error.message}
-              </p>
+              <StatePanel
+                eyebrow="Unavailable"
+                title="Route-ready tasks are unavailable"
+                description={journeyTasksQuery.error.message}
+                tone="danger"
+              />
             ) : journeyTasksQuery.data?.length ? (
               journeyTasksQuery.data.map((task) => (
                 <div
@@ -334,10 +364,11 @@ export function TasksWorkspace() {
                 </div>
               ))
             ) : (
-              <p className="rounded-[24px] bg-white/70 p-4 text-sm text-slate-600">
-                No Google task currently has enough location data to participate
-                in journey optimization.
-              </p>
+              <StatePanel
+                eyebrow="No route tags yet"
+                title="No task is ready for route planning"
+                description="Add a `#mavigo:` location tag in Google Tasks to make an errand available for route planning."
+              />
             )}
           </div>
         </Card>
@@ -359,11 +390,18 @@ export function TasksWorkspace() {
 
           <div className="mt-5 grid gap-3">
             {suggestionsQuery.isLoading ? (
-              <p className="text-sm text-slate-600">Loading tomorrow&apos;s tasks...</p>
+              <StatePanel
+                eyebrow="Loading"
+                title="Looking ahead to tomorrow"
+                description="We’re checking upcoming tasks that may turn into trips."
+              />
             ) : suggestionsQuery.error ? (
-              <p className="text-sm text-danger">
-                {suggestionsQuery.error.message}
-              </p>
+              <StatePanel
+                eyebrow="Unavailable"
+                title="Tomorrow’s suggestions are unavailable"
+                description={suggestionsQuery.error.message}
+                tone="danger"
+              />
             ) : suggestionsQuery.data?.length ? (
               suggestionsQuery.data.map((task) => (
                 <div
@@ -382,9 +420,11 @@ export function TasksWorkspace() {
                 </div>
               ))
             ) : (
-              <p className="rounded-[24px] bg-white/70 p-4 text-sm text-slate-600">
-                No location-tagged tasks are scheduled for tomorrow.
-              </p>
+              <StatePanel
+                eyebrow="All clear"
+                title="No suggested trip for tomorrow yet"
+                description="When tomorrow’s tasks include useful location details, they’ll show up here."
+              />
             )}
           </div>
         </Card>

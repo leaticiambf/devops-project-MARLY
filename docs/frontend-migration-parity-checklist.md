@@ -1,6 +1,6 @@
-# Maview Migration Parity Checklist
+# Mavigo Frontend Cutover Checklist
 
-This checklist is the Phase 0 source-of-truth for the incremental migration from Spring static UI to `/maview`.
+This checklist records the feature surface that was migrated from the legacy Spring-served UI and the cutover state after the Next.js frontend became the primary app.
 
 ## Legacy Frontend Modules
 
@@ -89,16 +89,18 @@ This checklist is the Phase 0 source-of-truth for the incremental migration from
 - The new UI system does not reuse `style.css`.
 - The browser talks to the frontend origin only; backend calls are proxied through Next rewrites.
 
-## Acceptance Tracking
+## Cutover Status
 
-- [x] Phase 0 parity checklist written
-- [x] Phase 1 app shell, routes, providers, and typed API/auth substrate
-- [x] Phase 2 proxy rules and session restore foundation
+- [x] Initial parity checklist written
+- [x] App shell, routes, providers, and API/auth foundation
+- [x] Frontend rewrite rules and session-restore foundation
 - [x] Backend CORS origin model made environment-driven
 - [x] Backend request ownership checks added for JWT-driven protected endpoints
-- [ ] Google popup flow validated end-to-end from `/maview`
+- [x] Google popup flow validated end-to-end from `/maview`
 - [x] Journey planner parity on `/`
 - [x] Comfort/home/suggestions/disruption parity
 - [x] Eco dashboard parity polish
 - [x] Frontend unit-test stack and CI split
-- [ ] Playwright e2e coverage against the split frontend/backend dev setup
+- [x] Playwright smoke coverage against the split frontend/backend dev setup
+- [x] Legacy Spring frontend routes changed from HTML forwarding to frontend redirects
+- [x] Legacy Spring static assets and Selenium UI suite retired
