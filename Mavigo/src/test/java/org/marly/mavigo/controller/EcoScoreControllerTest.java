@@ -8,6 +8,7 @@ import org.marly.mavigo.models.tracking.Badge;
 import org.marly.mavigo.models.tracking.JourneyActivity;
 import org.marly.mavigo.models.tracking.UserBadge;
 import org.marly.mavigo.security.JwtTokenService;
+import org.marly.mavigo.security.RequestOwnershipGuard;
 import org.marly.mavigo.service.tracking.GamificationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -47,6 +48,9 @@ class EcoScoreControllerTest {
 
     @MockitoBean
     private JwtTokenService jwtTokenService;
+
+    @MockitoBean
+    private RequestOwnershipGuard requestOwnershipGuard;
 
     @Test
     @WithMockUser

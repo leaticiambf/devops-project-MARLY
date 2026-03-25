@@ -14,6 +14,44 @@ permissions:
   contents: read
 
 jobs:
+  frontend:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: ./maview
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+        cache: 'pnpm'
+        cache-dependency-path: maview/pnpm-lock.yaml
+
+    - name: Set up pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        version: 10.24.0
+
+    - name: Install frontend dependencies
+      run: pnpm install --frozen-lockfile
+
+    - name: Lint frontend
+      run: pnpm lint
+
+    - name: Typecheck frontend
+      run: pnpm typecheck
+
+    - name: Run frontend unit tests
+      run: pnpm test
+
+    - name: Build frontend
+      run: pnpm build
+
   build:
     runs-on: ubuntu-latest
 
@@ -134,7 +172,7 @@ jobs:
 
   release:
     runs-on: ubuntu-latest
-    needs: [build, ui-tests, documentation]
+    needs: [frontend, build, ui-tests, documentation]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'Release')
     permissions:
       contents: write

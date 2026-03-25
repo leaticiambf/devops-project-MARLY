@@ -21,13 +21,16 @@ import org.marly.mavigo.client.prim.model.PrimPlace;
 import org.marly.mavigo.models.shared.GeoPoint;
 import org.marly.mavigo.models.user.User;
 import org.marly.mavigo.repository.UserTaskRepository;
+import org.marly.mavigo.security.RequestOwnershipGuard;
 import org.marly.mavigo.service.user.UserService;
 import org.marly.mavigo.service.user.dto.GoogleAccountLink;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClient;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientService;
@@ -67,18 +70,31 @@ public class GoogleTasksController {
     private final UserService userService;
     private final UserTaskRepository userTaskRepository;
     private final PrimApiClient primApiClient;
+    private final RequestOwnershipGuard requestOwnershipGuard;
 
+    @Autowired
     public GoogleTasksController(
             WebClient googleApiWebClient,
             OAuth2AuthorizedClientService authorizedClientService,
             UserService userService,
             UserTaskRepository userTaskRepository,
             PrimApiClient primApiClient) {
+        this(googleApiWebClient, authorizedClientService, userService, userTaskRepository, primApiClient, null);
+    }
+
+    public GoogleTasksController(
+            WebClient googleApiWebClient,
+            OAuth2AuthorizedClientService authorizedClientService,
+            UserService userService,
+            UserTaskRepository userTaskRepository,
+            PrimApiClient primApiClient,
+            RequestOwnershipGuard requestOwnershipGuard) {
         this.googleApiWebClient = googleApiWebClient;
         this.authorizedClientService = authorizedClientService;
         this.userService = userService;
         this.userTaskRepository = userTaskRepository;
         this.primApiClient = primApiClient;
+        this.requestOwnershipGuard = requestOwnershipGuard;
     }
 
     // -----------------------------
@@ -130,13 +146,20 @@ public class GoogleTasksController {
     public List<TaskListDto> listsForUser(
             @PathVariable UUID userId,
             @RequestParam(required = false) Integer pageSize,
-            @RequestParam(required = false) String pageToken) {
+            @RequestParam(required = false) String pageToken,
+            Authentication authentication) {
+        requireUserAccess(userId, authentication);
         OAuth2AuthorizedClient client = requireAuthorizedClientForUser(userId);
         return fetchLists(client, pageSize, pageToken);
     }
 
+    public List<TaskListDto> listsForUser(UUID userId, Integer pageSize, String pageToken) {
+        return listsForUser(userId, pageSize, pageToken, null);
+    }
+
     @GetMapping("/users/{userId}/default-list")
-    public Map<String, Object> defaultListForUser(@PathVariable UUID userId) {
+    public Map<String, Object> defaultListForUser(@PathVariable UUID userId, Authentication authentication) {
+        requireUserAccess(userId, authentication);
         OAuth2AuthorizedClient client = requireAuthorizedClientForUser(userId);
         List<TaskListDto> lists = fetchLists(client, 50, null);
 
@@ -148,6 +171,10 @@ public class GoogleTasksController {
         return Map.of("id", chosen.id(), "title", chosen.title());
     }
 
+    public Map<String, Object> defaultListForUser(UUID userId) {
+        return defaultListForUser(userId, null);
+    }
+
     /**
      * Récupère les tâches depuis Google Tasks uniquement (aucun stockage local).
      * Les balises #mavigo: dans titre/notes sont extraites pour affichage (locationQuery) sans persistance.
@@ -157,12 +184,18 @@ public class GoogleTasksController {
             @PathVariable UUID userId,
             @PathVariable String listId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
-            @RequestParam(defaultValue = "false") boolean includeCompleted) {
+            @RequestParam(defaultValue = "false") boolean includeCompleted,
+            Authentication authentication) {
+        requireUserAccess(userId, authentication);
         OAuth2AuthorizedClient client = requireAuthorizedClientForUser(userId);
         List<TaskDto> googleTasks = fetchTasks(client, listId, date, includeCompleted);
         return googleTasks.stream()
                 .map(this::taskDtoToResponseMap)
                 .toList();
+    }
+
+    public List<Map<String, Object>> tasksForUser(UUID userId, String listId, LocalDate date, boolean includeCompleted) {
+        return tasksForUser(userId, listId, date, includeCompleted, null);
     }
 
     /**
@@ -171,7 +204,9 @@ public class GoogleTasksController {
     @GetMapping("/users/{userId}/suggestions")
     public List<Map<String, Object>> suggestionsForUser(
             @PathVariable UUID userId,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            Authentication authentication) {
+        requireUserAccess(userId, authentication);
         OAuth2AuthorizedClient client = requireAuthorizedClientForUser(userId);
 
         List<TaskListDto> lists = fetchLists(client, 50, null);
@@ -194,6 +229,10 @@ public class GoogleTasksController {
                     return locationQuery != null && StringUtils.hasText(String.valueOf(locationQuery));
                 })
                 .toList();
+    }
+
+    public List<Map<String, Object>> suggestionsForUser(UUID userId, LocalDate date) {
+        return suggestionsForUser(userId, date, null);
     }
 
     /**
@@ -244,7 +283,8 @@ public class GoogleTasksController {
     }
 
     @GetMapping("/users/{userId}/local")
-    public List<Map<String, Object>> localTasks(@PathVariable UUID userId) {
+    public List<Map<String, Object>> localTasks(@PathVariable UUID userId, Authentication authentication) {
+        requireUserAccess(userId, authentication);
         return userTaskRepository.findByUser_Id(userId)
                 .stream()
                 .map(t -> {
@@ -270,13 +310,19 @@ public class GoogleTasksController {
                 .toList();
     }
 
+    public List<Map<String, Object>> localTasks(UUID userId) {
+        return localTasks(userId, null);
+    }
+
     /**
      * Tâches depuis Google uniquement, avec #mavigo: et géocodage, sans stockage en base.
      * Utilisé pour l’optimisation de trajet (les tâches sont envoyées dans taskDetails).
      */
     @GetMapping("/users/{userId}/for-journey")
     public List<Map<String, Object>> tasksForJourney(@PathVariable UUID userId,
-            @RequestParam(defaultValue = "false") boolean includeCompleted) {
+            @RequestParam(defaultValue = "false") boolean includeCompleted,
+            Authentication authentication) {
+        requireUserAccess(userId, authentication);
         OAuth2AuthorizedClient client = requireAuthorizedClientForUser(userId);
         List<TaskListDto> lists = fetchLists(client, 50, null);
         if (lists == null || lists.isEmpty()) {
@@ -308,6 +354,10 @@ public class GoogleTasksController {
             out.add(m);
         }
         return out;
+    }
+
+    public List<Map<String, Object>> tasksForJourney(UUID userId, boolean includeCompleted) {
+        return tasksForJourney(userId, includeCompleted, null);
     }
 
     @GetMapping(value = "/link", produces = MediaType.TEXT_HTML_VALUE)
@@ -343,7 +393,10 @@ public class GoogleTasksController {
     public Map<String, Object> completeTaskForUser(
             @PathVariable UUID userId,
             @PathVariable String listId,
-            @PathVariable String taskId) {
+            @PathVariable String taskId,
+            Authentication authentication) {
+
+        requireUserAccess(userId, authentication);
 
         OAuth2AuthorizedClient client = requireAuthorizedClientForUser(userId);
 
@@ -372,6 +425,10 @@ public class GoogleTasksController {
         }
     }
 
+    public Map<String, Object> completeTaskForUser(UUID userId, String listId, String taskId) {
+        return completeTaskForUser(userId, listId, taskId, null);
+    }
+
     /**
      * ✅ New: delete task
      */
@@ -379,7 +436,10 @@ public class GoogleTasksController {
     public ResponseEntity<Void> deleteTaskForUser(
             @PathVariable UUID userId,
             @PathVariable String listId,
-            @PathVariable String taskId) {
+            @PathVariable String taskId,
+            Authentication authentication) {
+
+        requireUserAccess(userId, authentication);
 
         OAuth2AuthorizedClient client = requireAuthorizedClientForUser(userId);
 
@@ -398,6 +458,16 @@ public class GoogleTasksController {
                     HttpStatus.valueOf(e.getStatusCode().value()),
                     "Google Tasks API error: " + e.getResponseBodyAsString(),
                     e);
+        }
+    }
+
+    public ResponseEntity<Void> deleteTaskForUser(UUID userId, String listId, String taskId) {
+        return deleteTaskForUser(userId, listId, taskId, null);
+    }
+
+    private void requireUserAccess(UUID userId, Authentication authentication) {
+        if (requestOwnershipGuard != null) {
+            requestOwnershipGuard.requireUserAccess(userId, authentication);
         }
     }
 

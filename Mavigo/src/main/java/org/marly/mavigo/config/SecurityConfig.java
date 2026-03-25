@@ -77,13 +77,14 @@ public class SecurityConfig {
                         .requestMatchers("/", "/search", "/tasks", "/results", "/index.html", "/app.js", "/js/**",
                                 "/style.css", "/favicon.ico", "/images/**")
                         .permitAll()
+                        .requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info")
+                        .permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/users", "/api/users/login")
                         .permitAll()
                         .requestMatchers("/api/auth/login").permitAll()
-                        .requestMatchers("/api/journeys", "/api/journeys/**", "/api/users",
-                                "/api/users/**", "/api/eco/**", "/api/setup/**")
-                        .permitAll()
-                        .requestMatchers("/api/google/**").authenticated()
+                        .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
+                        .requestMatchers("/api/users/**", "/api/journeys/**", "/api/eco/**", "/api/google/**")
+                        .authenticated()
                         .anyRequest().authenticated())
                 .oauth2Login(oauth -> oauth
                         .authorizationEndpoint(ae -> ae.authorizationRequestResolver(googleAuthRequestResolver))

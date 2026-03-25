@@ -25,6 +25,7 @@ import org.marly.mavigo.models.user.User;
 import org.marly.mavigo.repository.UserRepository;
 import org.marly.mavigo.repository.UserTaskRepository;
 import org.marly.mavigo.repository.JourneyRepository;
+import org.marly.mavigo.security.RequestOwnershipGuard;
 import org.marly.mavigo.service.journey.JourneyOptimizationService;
 import org.marly.mavigo.service.journey.JourneyPlanningService;
 import org.marly.mavigo.service.journey.TaskOnRouteService;
@@ -45,6 +46,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.Authentication;
 
 @RestController
 @RequestMapping("/api/journeys")
@@ -59,7 +62,9 @@ public class JourneyController {
     private final JourneyManagementService journeyManagementService;
     private final JourneyOptimizationService journeyOptimizationService;
     private final JourneyRepository journeyRepository;
+    private final RequestOwnershipGuard requestOwnershipGuard;
 
+    @Autowired
     public JourneyController(
             JourneyPlanningService journeyPlanningService,
             UserTaskRepository userTaskRepository,
@@ -68,6 +73,19 @@ public class JourneyController {
             JourneyManagementService journeyManagementService,
             JourneyOptimizationService journeyOptimizationService,
             JourneyRepository journeyRepository) {
+        this(journeyPlanningService, userTaskRepository, userRepository, taskOnRouteService, journeyManagementService,
+                journeyOptimizationService, journeyRepository, null);
+    }
+
+    public JourneyController(
+            JourneyPlanningService journeyPlanningService,
+            UserTaskRepository userTaskRepository,
+            UserRepository userRepository,
+            TaskOnRouteService taskOnRouteService,
+            JourneyManagementService journeyManagementService,
+            JourneyOptimizationService journeyOptimizationService,
+            JourneyRepository journeyRepository,
+            RequestOwnershipGuard requestOwnershipGuard) {
         this.journeyPlanningService = journeyPlanningService;
         this.userTaskRepository = userTaskRepository;
         this.userRepository = userRepository;
@@ -75,11 +93,14 @@ public class JourneyController {
         this.journeyManagementService = journeyManagementService;
         this.journeyOptimizationService = journeyOptimizationService;
         this.journeyRepository = journeyRepository;
+        this.requestOwnershipGuard = requestOwnershipGuard;
     }
 
     @PostMapping
-    public ResponseEntity<java.util.List<JourneyResponse>> planJourney(@Valid @RequestBody PlanJourneyCommand command) {
+    public ResponseEntity<java.util.List<JourneyResponse>> planJourney(@Valid @RequestBody PlanJourneyCommand command,
+            Authentication authentication) {
         PlanJourneyRequest request = command.journey();
+        requireUserAccess(request.userId(), authentication);
         boolean ecoModeEnabled = Boolean.TRUE.equals(request.ecoModeEnabled());
         JourneyPreferences preferences = mapPreferences(command.preferences(), ecoModeEnabled);
 
@@ -280,34 +301,57 @@ public class JourneyController {
     }
 
     @PostMapping("/{id}/start")
-    public ResponseEntity<JourneyResponse> startJourney(@PathVariable java.util.UUID id) {
+    public ResponseEntity<JourneyResponse> startJourney(@PathVariable java.util.UUID id,
+            Authentication authentication) {
+        requireJourneyAccess(id, authentication);
         org.marly.mavigo.service.journey.JourneyActionResult result = journeyManagementService.startJourney(id);
         return ResponseEntity.ok(JourneyResponse.from(result.journey(), null, result.newBadges()));
     }
 
     @PostMapping("/{id}/complete")
-    public ResponseEntity<JourneyResponse> completeJourney(@PathVariable java.util.UUID id) {
+    public ResponseEntity<JourneyResponse> completeJourney(@PathVariable java.util.UUID id,
+            Authentication authentication) {
+        requireJourneyAccess(id, authentication);
         org.marly.mavigo.service.journey.JourneyActionResult result = journeyManagementService.completeJourney(id);
         return ResponseEntity.ok(JourneyResponse.from(result.journey(), null, result.newBadges()));
     }
 
     @PostMapping("/{id}/cancel")
-    public ResponseEntity<JourneyResponse> cancelJourney(@PathVariable java.util.UUID id) {
+    public ResponseEntity<JourneyResponse> cancelJourney(@PathVariable java.util.UUID id,
+            Authentication authentication) {
+        requireJourneyAccess(id, authentication);
         Journey journey = journeyManagementService.cancelJourney(id);
         return ResponseEntity.ok(JourneyResponse.from(journey));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<JourneyResponse> getJourney(@PathVariable java.util.UUID id) {
+    public ResponseEntity<JourneyResponse> getJourney(@PathVariable java.util.UUID id,
+            Authentication authentication) {
+        requireJourneyAccess(id, authentication);
         Journey journey = journeyManagementService.getJourney(id);
         return ResponseEntity.ok(JourneyResponse.from(journey));
     }
 
     @org.springframework.web.bind.annotation.DeleteMapping("/all")
-    public ResponseEntity<Void> deleteAllJourneys() {
+    public ResponseEntity<Void> deleteAllJourneys(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new org.springframework.security.access.AccessDeniedException("Authentication is required");
+        }
         LOGGER.info("Request to delete all journeys and activity data");
         journeyManagementService.clearAllData();
         return ResponseEntity.noContent().build();
+    }
+
+    private void requireUserAccess(UUID userId, Authentication authentication) {
+        if (requestOwnershipGuard != null) {
+            requestOwnershipGuard.requireUserAccess(userId, authentication);
+        }
+    }
+
+    private void requireJourneyAccess(UUID journeyId, Authentication authentication) {
+        if (requestOwnershipGuard != null) {
+            requestOwnershipGuard.requireJourneyAccess(journeyId, authentication);
+        }
     }
 
     private static LocalDateTime parseDepartureTime(String raw) {

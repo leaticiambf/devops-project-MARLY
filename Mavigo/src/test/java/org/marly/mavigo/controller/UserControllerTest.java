@@ -27,6 +27,7 @@ import org.marly.mavigo.filter.JwtFilter;
 import org.marly.mavigo.controller.dto.CreateUserRequest;
 import org.marly.mavigo.controller.dto.UpdateUserRequest;
 import org.marly.mavigo.models.user.User;
+import org.marly.mavigo.security.RequestOwnershipGuard;
 import org.marly.mavigo.service.user.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -65,6 +66,9 @@ class UserControllerTest {
 
     @MockitoBean
     private JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    @MockitoBean
+    private RequestOwnershipGuard requestOwnershipGuard;
 
     @BeforeEach
     void setupFilter() throws ServletException, IOException {

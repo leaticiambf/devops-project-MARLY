@@ -14,6 +14,7 @@ import org.marly.mavigo.config.CustomUserDetailsService;
 import org.marly.mavigo.config.JwtUtils;
 import org.marly.mavigo.filter.JwtFilter;
 import org.marly.mavigo.security.JwtAuthenticationFilter;
+import org.marly.mavigo.security.RequestOwnershipGuard;
 import org.marly.mavigo.security.JwtTokenService;
 import org.marly.mavigo.repository.UserRepository;
 import org.marly.mavigo.service.disruption.DisruptionReportingService;
@@ -63,6 +64,9 @@ class DisruptionControllerTest {
 
     @MockitoBean
     private JwtTokenService jwtTokenService;
+
+    @MockitoBean
+    private RequestOwnershipGuard requestOwnershipGuard;
 
     @BeforeEach
     void setupFilter() throws ServletException, IOException {
