@@ -20,8 +20,8 @@ type ToastContextValue = {
 const ToastContext = createContext<ToastContextValue | null>(null);
 
 const variantStyles: Record<ToastVariant, string> = {
-  success: "border-brand/25 bg-white text-slate-900",
-  error: "border-danger/25 bg-white text-slate-900",
+  success: "border-l-4 border-l-brand bg-surface border border-line text-foreground",
+  error: "border-l-4 border-l-danger bg-surface border border-line text-foreground",
 };
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
@@ -48,12 +48,12 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           <div
             key={item.id}
             className={cn(
-              "pointer-events-auto rounded-[24px] border p-4 shadow-[0_18px_40px_rgba(18,33,43,0.14)]",
+              "pointer-events-auto rounded-lg p-4 shadow-[0_4px_24px_rgba(0,0,0,0.4)]",
               variantStyles[item.variant],
             )}
           >
-            <p className="text-sm font-semibold">{item.title}</p>
-            <p className="mt-1 text-sm text-slate-600">{item.description}</p>
+            <p className="text-sm font-semibold text-foreground">{item.title}</p>
+            <p className="mt-1 text-sm text-secondary">{item.description}</p>
           </div>
         ))}
       </div>

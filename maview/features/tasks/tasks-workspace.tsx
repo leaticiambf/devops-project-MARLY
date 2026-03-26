@@ -178,18 +178,18 @@ export function TasksWorkspace() {
             </Badge>
             <Badge variant="muted">Task sync</Badge>
           </div>
-          <h1 className="mt-5 page-title">Keep your errands close to the route</h1>
+          <h1 className="mt-5 page-title text-foreground">Keep your errands close to the route</h1>
           <p className="mt-4 page-copy">
             Connect Google Tasks to bring your default list into Mavigo, complete
             errands from the app, and make route planning aware of what you need
             to get done.
           </p>
-          <div className="mt-6 rounded-[24px] bg-white/75 p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
+          <div className="mt-6 rounded-lg bg-surface-strong border border-line p-5">
+            <p className="text-xs font-bold uppercase tracking-[0.28em] text-secondary font-mono">
               Linked Account
             </p>
-            <p className="mt-2 text-sm leading-6 text-slate-700">{linkedStatus}</p>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
+            <p className="mt-2 text-sm leading-6 text-foreground font-mono">{linkedStatus}</p>
+            <p className="mt-2 text-sm leading-6 text-secondary">
               Once connected, Mavigo can load your tasks, suggest tomorrow&apos;s
               trips, and include eligible stops in route planning.
             </p>
@@ -209,14 +209,14 @@ export function TasksWorkspace() {
         <Card>
           <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
+              <p className="text-xs font-bold uppercase tracking-[0.28em] text-secondary">
                 Main Task List
               </p>
-              <h2 className="mt-2 text-2xl font-semibold">
+              <h2 className="mt-2 text-2xl font-bold text-foreground">
                 {defaultListQuery.data?.title || "Connect Google Tasks to load a list"}
               </h2>
             </div>
-            <label className="flex items-center gap-3 rounded-full bg-white/70 px-4 py-2 text-sm font-medium text-slate-700">
+            <label className="flex items-center gap-3 rounded-lg bg-surface-strong border border-line px-4 py-2 text-sm font-medium text-secondary cursor-pointer">
               <input
                 type="checkbox"
                 checked={includeCompleted}
@@ -271,19 +271,19 @@ export function TasksWorkspace() {
                 return (
                   <div
                     key={task.id}
-                    className="rounded-[24px] border border-line bg-white/75 p-5"
+                    className="rounded-xl border border-line bg-surface-strong p-5"
                   >
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                       <div>
-                        <h3 className="text-lg font-semibold text-slate-900">
+                        <h3 className="text-lg font-semibold text-foreground">
                           {task.title || "Untitled task"}
                         </h3>
-                        <p className="mt-2 text-sm text-slate-600">
+                        <p className="mt-2 text-sm text-secondary">
                           {task.locationQuery
                             ? `Route tag: ${task.locationQuery}`
                             : "No route tag added yet"}
                         </p>
-                        <p className="mt-2 text-sm text-slate-500">
+                        <p className="mt-2 text-sm text-secondary font-mono">
                           {taskCompletedLabel(task)}
                         </p>
                       </div>
@@ -322,10 +322,10 @@ export function TasksWorkspace() {
         <Card>
           <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
+              <p className="text-xs font-bold uppercase tracking-[0.28em] text-secondary">
                 Route Planning Feed
               </p>
-              <h2 className="mt-2 text-2xl font-semibold">
+              <h2 className="mt-2 text-2xl font-bold text-foreground">
                 Tasks ready for route planning
               </h2>
             </div>
@@ -352,13 +352,13 @@ export function TasksWorkspace() {
               journeyTasksQuery.data.map((task) => (
                 <div
                   key={task.id}
-                  className="rounded-[24px] border border-line bg-white/80 p-4"
+                  className="rounded-xl border border-line bg-surface-strong p-4"
                 >
-                  <p className="font-semibold text-slate-900">{task.title}</p>
-                  <p className="mt-1 text-sm text-slate-600">
+                  <p className="font-semibold text-foreground">{task.title}</p>
+                  <p className="mt-1 text-sm text-secondary">
                     {task.locationQuery}
                   </p>
-                  <p className="mt-1 text-sm text-slate-500">
+                  <p className="mt-1 text-sm text-secondary font-mono">
                     {task.lat.toFixed(4)}, {task.lng.toFixed(4)}
                   </p>
                 </div>
@@ -376,10 +376,10 @@ export function TasksWorkspace() {
         <Card>
           <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
+              <p className="text-xs font-bold uppercase tracking-[0.28em] text-secondary">
                 Tomorrow Suggestions
               </p>
-              <h2 className="mt-2 text-2xl font-semibold">
+              <h2 className="mt-2 text-2xl font-bold text-foreground">
                 Suggested trips for {formatTaskDateOnly(getTomorrowDateString())}
               </h2>
             </div>
@@ -406,15 +406,15 @@ export function TasksWorkspace() {
               suggestionsQuery.data.map((task) => (
                 <div
                   key={task.id}
-                  className="rounded-[24px] border border-line bg-white/80 p-4"
+                  className="rounded-xl border border-line bg-surface-strong p-4"
                 >
-                  <p className="font-semibold text-slate-900">
+                  <p className="font-semibold text-foreground">
                     {task.title || "Untitled task"}
                   </p>
-                  <p className="mt-1 text-sm text-slate-600">
+                  <p className="mt-1 text-sm text-secondary">
                     {task.locationQuery || "No Mavigo location tag"}
                   </p>
-                  <p className="mt-1 text-sm text-slate-500">
+                  <p className="mt-1 text-sm text-secondary font-mono">
                     {taskCompletedLabel(task)}
                   </p>
                 </div>

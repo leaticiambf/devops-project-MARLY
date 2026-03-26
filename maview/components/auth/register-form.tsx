@@ -81,10 +81,10 @@ export function RegisterForm() {
   return (
     <form className="grid gap-5" onSubmit={handleSubmit(onSubmit)}>
       <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
+        <p className="text-xs font-bold uppercase tracking-[0.3em] text-secondary">
           Register
         </p>
-        <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">
+        <h2 className="mt-2 text-3xl font-bold tracking-tight text-foreground">
           Start planning with confidence
         </h2>
       </div>

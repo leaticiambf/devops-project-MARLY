@@ -1,22 +1,23 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f3efe5;
-  --foreground: #12212b;
-  --surface: rgba(255, 251, 243, 0.82);
-  --surface-strong: #fffdf8;
-  --surface-muted: rgba(250, 242, 228, 0.72);
-  --line: rgba(18, 33, 43, 0.12);
-  --brand: #0c7c59;
-  --brand-strong: #095c42;
-  --brand-soft: rgba(12, 124, 89, 0.12);
-  --accent: #f28f3b;
-  --accent-soft: rgba(242, 143, 59, 0.16);
-  --danger: #b23a48;
-  --success: #0c7c59;
-  --shadow: 0 18px 60px rgba(18, 33, 43, 0.12);
-  --font-sans: "Avenir Next", "Segoe UI", sans-serif;
-  --font-mono: "IBM Plex Mono", "SFMono-Regular", monospace;
+  --background: #0c1222;
+  --foreground: #e2e8f0;
+  --surface: #141929;
+  --surface-strong: #1c2438;
+  --surface-muted: #141929;
+  --line: rgba(255, 255, 255, 0.08);
+  --brand: #009b48;
+  --brand-strong: #00b34a;
+  --brand-soft: rgba(0, 155, 72, 0.12);
+  --accent: #38bdf8;
+  --accent-soft: rgba(56, 189, 248, 0.1);
+  --danger: #e3001b;
+  --success: #009b48;
+  --secondary: #7a8ba8;
+  --shadow: 0 4px 32px rgba(0, 0, 0, 0.5);
+  --font-sans: 'Archivo', sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
 }
 
 @theme inline {
@@ -33,6 +34,7 @@
   --color-accent-soft: var(--accent-soft);
   --color-danger: var(--danger);
   --color-success: var(--success);
+  --color-secondary: var(--secondary);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
 }
@@ -43,9 +45,9 @@
 
 html {
   background:
-    radial-gradient(circle at top left, rgba(242, 143, 59, 0.16), transparent 30%),
-    radial-gradient(circle at top right, rgba(12, 124, 89, 0.15), transparent 28%),
-    linear-gradient(180deg, #f7f2e8 0%, #f0eadf 55%, #ece5d8 100%);
+    radial-gradient(circle at top right, rgba(56, 189, 248, 0.06), transparent 40%),
+    radial-gradient(circle at bottom left, rgba(0, 155, 72, 0.07), transparent 35%),
+    #0c1222;
   color: var(--foreground);
 }
 
@@ -69,7 +71,7 @@ select {
 }
 
 ::selection {
-  background: rgba(12, 124, 89, 0.2);
+  background: rgba(56, 189, 248, 0.2);
 }
 
 @utility shell-grid {
@@ -78,9 +80,12 @@ select {
 
 @utility glass-panel {
   background: var(--surface);
-  backdrop-filter: blur(18px);
   border: 1px solid var(--line);
   box-shadow: var(--shadow);
+}
+
+@utility transit-line-badge {
+  @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-bold text-white font-mono;
 }
 
 @utility page-title {
@@ -88,11 +93,11 @@ select {
 }
 
 @utility page-copy {
-  @apply max-w-2xl text-sm leading-6 text-slate-700 sm:text-base;
+  @apply max-w-2xl text-sm leading-6 text-secondary sm:text-base;
 }
 
 @utility subtle-ring {
   box-shadow:
-    0 0 0 1px rgba(12, 124, 89, 0.08),
-    0 14px 40px rgba(18, 33, 43, 0.08);
+    0 0 0 1px rgba(0, 155, 72, 0.08),
+    0 4px 24px rgba(0, 0, 0, 0.3);
 }

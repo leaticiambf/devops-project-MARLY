@@ -32,19 +32,19 @@ export function GoogleLinkCompleteClient({
 
   return (
     <main className="shell-grid py-16">
-      <section className="glass-panel rounded-[28px] p-8 text-center">
-        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
+      <section className="rounded-xl border border-brand/30 bg-surface p-8 text-center">
+        <p className="text-xs font-bold uppercase tracking-[0.28em] text-secondary font-mono">
           Google Tasks
         </p>
-        <h1 className="mt-4 text-3xl font-semibold tracking-tight text-slate-950">
+        <h1 className="mt-4 text-3xl font-bold tracking-tight text-foreground">
           Connection complete
         </h1>
-        <p className="mt-4 text-sm leading-6 text-slate-600">
+        <p className="mt-4 text-sm leading-6 text-secondary">
           {email
             ? `${email} is now connected to Mavigo.`
             : "Your Google Tasks account is now connected."}
         </p>
-        <p className="mt-2 text-sm leading-6 text-slate-600">
+        <p className="mt-2 text-sm leading-6 text-secondary">
           This window can close automatically.
         </p>
       </section>

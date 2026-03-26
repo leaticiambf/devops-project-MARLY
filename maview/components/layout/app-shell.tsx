@@ -25,56 +25,51 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen pb-10">
+    <div className="min-h-screen pb-10 bg-background">
       <header className="shell-grid sticky top-0 z-40 pt-4">
-        <div className="glass-panel flex flex-col gap-4 rounded-[28px] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-4 rounded-xl border border-line bg-surface px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
             <Link href="/" className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand text-sm font-semibold text-white">
+              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-brand text-sm font-bold text-white">
                 MV
               </div>
               <div>
-                <p className="text-[0.68rem] font-semibold uppercase tracking-[0.28em] text-slate-500">
-                  Mavigo
+                <p className="text-xs font-bold uppercase tracking-[0.28em] text-secondary">
+                  Paris Transit
                 </p>
-                <p className="text-lg font-semibold tracking-tight text-slate-900">
-                  Paris journey companion
+                <p className="text-base font-bold tracking-tight text-foreground">
+                  MAVIGO
                 </p>
               </div>
             </Link>
             <Badge variant="accent">Live planning</Badge>
           </div>
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <nav className="flex flex-wrap items-center gap-2">
-              {navItems.map((item) => {
-                const active = pathname === item.href;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={cn(
-                      "rounded-full px-4 py-2 text-sm font-medium transition",
-                      active
-                        ? "bg-slate-900 text-white"
-                        : "bg-white/70 text-slate-700 hover:bg-white",
-                    )}
-                  >
-                    {item.label}
-                  </Link>
-                );
-              })}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+            <nav className="pt-0.5">
+              <div className="relative flex items-start">
+                <div className="absolute top-2 left-4 right-4 h-px bg-line" />
+                {navItems.map((item) => {
+                  const active = pathname === item.href;
+                  return (
+                    <Link key={item.href} href={item.href} className="relative flex flex-col items-center px-5 z-10">
+                      <div className={cn("w-4 h-4 rounded-full border-2", active ? "bg-brand border-brand" : "bg-surface border-line")} />
+                      <span className={cn("text-xs mt-1.5 whitespace-nowrap", active ? "text-brand font-semibold" : "text-secondary")}>{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
             </nav>
 
             {isRestoring ? (
               <Badge variant="muted">Restoring access</Badge>
             ) : isAuthenticated && user ? (
               <div className="flex flex-wrap items-center gap-3">
-                <div className="rounded-full bg-white/80 px-4 py-2 text-right">
-                  <p className="text-sm font-semibold text-slate-900">
+                <div className="rounded-lg border border-line bg-surface-strong px-4 py-2 text-right">
+                  <p className="text-sm font-semibold text-foreground">
                     {user.displayName}
                   </p>
-                  <p className="text-xs text-slate-500">{user.email}</p>
+                  <p className="text-xs text-secondary font-mono">{user.email}</p>
                 </div>
                 {user.googleAccountLinked ? (
                   <Badge variant="success">Google Tasks connected</Badge>

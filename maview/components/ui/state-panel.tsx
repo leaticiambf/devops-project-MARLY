@@ -5,10 +5,10 @@ import { cn } from "@/lib/utils/cn";
 type StatePanelTone = "neutral" | "success" | "warning" | "danger";
 
 const toneStyles: Record<StatePanelTone, string> = {
-  neutral: "bg-white/70 text-slate-700 border border-line",
-  success: "border border-emerald-200 bg-emerald-50/80 text-slate-800",
-  warning: "border border-amber-200 bg-amber-50/90 text-slate-800",
-  danger: "border border-rose-200 bg-rose-50/90 text-rose-950",
+  neutral: "bg-surface-strong text-foreground border border-line",
+  success: "border border-brand/30 bg-brand-soft text-foreground",
+  warning: "border border-accent/30 bg-accent-soft text-foreground",
+  danger: "border border-danger/30 bg-[rgba(227,0,27,0.08)] text-foreground",
 };
 
 type StatePanelProps = HTMLAttributes<HTMLDivElement> & {
@@ -31,16 +31,16 @@ export function StatePanel({
   return (
     <div
       {...props}
-      className={cn("rounded-[24px] px-5 py-4", toneStyles[tone], className)}
+      className={cn("rounded-lg px-5 py-4", toneStyles[tone], className)}
     >
       {eyebrow ? (
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
+        <p className="text-xs font-bold uppercase tracking-[0.24em] text-secondary">
           {eyebrow}
         </p>
       ) : null}
-      <p className={cn("font-semibold", eyebrow ? "mt-2" : "")}>{title}</p>
+      <p className={cn("font-semibold text-foreground", eyebrow ? "mt-2" : "")}>{title}</p>
       {description ? (
-        <p className="mt-2 text-sm leading-6 text-slate-600">{description}</p>
+        <p className="mt-2 text-sm leading-6 text-secondary">{description}</p>
       ) : null}
       {actions ? <div className="mt-4 flex flex-wrap gap-3">{actions}</div> : null}
     </div>

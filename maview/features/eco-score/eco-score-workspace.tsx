@@ -56,26 +56,26 @@ export function EcoScoreWorkspace() {
         <>
           <section className="grid gap-6 lg:grid-cols-3">
             <Card>
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
+              <p className="text-xs font-bold uppercase tracking-[0.28em] text-secondary">
                 Total CO2 saved
               </p>
-              <p className="mt-4 text-4xl font-semibold">
+              <p className="mt-4 text-4xl font-bold text-brand font-mono">
                 {dashboardQuery.data.totalCo2Saved.toFixed(2)} kg
               </p>
             </Card>
             <Card>
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
+              <p className="text-xs font-bold uppercase tracking-[0.28em] text-secondary">
                 Badges earned
               </p>
-              <p className="mt-4 text-4xl font-semibold">
+              <p className="mt-4 text-4xl font-bold text-brand font-mono">
                 {dashboardQuery.data.badgeCount}
               </p>
             </Card>
             <Card>
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
+              <p className="text-xs font-bold uppercase tracking-[0.28em] text-secondary">
                 Tracked journeys
               </p>
-              <p className="mt-4 text-4xl font-semibold">
+              <p className="mt-4 text-4xl font-bold text-brand font-mono">
                 {dashboardQuery.data.history.length}
               </p>
             </Card>
@@ -84,7 +84,7 @@ export function EcoScoreWorkspace() {
           <section className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
             <Card>
               <div className="flex items-center justify-between gap-4">
-                <h2 className="text-2xl font-semibold">Earned badges</h2>
+                <h2 className="text-2xl font-bold text-foreground">Earned badges</h2>
                 <Badge variant="success">{dashboardQuery.data.badgeCount} earned</Badge>
               </div>
               <div className="mt-5 grid gap-3">
@@ -92,18 +92,28 @@ export function EcoScoreWorkspace() {
                   dashboardQuery.data.earnedBadges.map((badge) => (
                     <div
                       key={`${badge.name}-${badge.earnedAt}`}
-                      className="rounded-[24px] border border-emerald-200 bg-[linear-gradient(135deg,rgba(12,124,89,0.14),rgba(255,255,255,0.92))] p-4"
+                      className="rounded-xl border border-brand/30 bg-brand-soft p-4"
                     >
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="font-semibold">{badge.name}</p>
-                        <Badge variant="success">Unlocked</Badge>
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0"
+                          style={{ backgroundColor: '#009b48', border: '2px solid #009b48', color: 'white' }}
+                        >
+                          {badge.name.slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="font-semibold text-foreground">{badge.name}</p>
+                            <Badge variant="success">Unlocked</Badge>
+                          </div>
+                          <p className="mt-1 text-sm text-secondary">
+                            {badge.description}
+                          </p>
+                          <p className="mt-2 text-xs uppercase tracking-[0.2em] text-secondary font-mono">
+                            Earned {formatDateTime(badge.earnedAt)}
+                          </p>
+                        </div>
                       </div>
-                      <p className="mt-1 text-sm text-slate-600">
-                        {badge.description}
-                      </p>
-                      <p className="mt-2 text-xs uppercase tracking-[0.2em] text-slate-500">
-                        Earned {formatDateTime(badge.earnedAt)}
-                      </p>
                     </div>
                   ))
                 ) : (
@@ -118,8 +128,8 @@ export function EcoScoreWorkspace() {
             <Card>
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h2 className="text-2xl font-semibold">Badge collection</h2>
-                  <p className="mt-2 text-sm leading-6 text-slate-600">
+                  <h2 className="text-2xl font-bold text-foreground">Badge collection</h2>
+                  <p className="mt-2 text-sm leading-6 text-secondary">
                     Every badge highlights a greener travel habit. Earned badges
                     stay highlighted while the rest show what you can work toward.
                   </p>
@@ -135,17 +145,31 @@ export function EcoScoreWorkspace() {
                   return (
                     <div
                       key={badge.name}
-                      className="rounded-[24px] bg-white/80 p-4"
+                      className="rounded-xl border border-line bg-surface-strong p-4"
                     >
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="font-semibold">{badge.name}</p>
-                        <Badge variant={earned ? "success" : "muted"}>
-                          {earned ? "Earned" : "Locked"}
-                        </Badge>
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0"
+                          style={{
+                            backgroundColor: earned ? '#009b48' : 'transparent',
+                            border: `2px solid ${earned ? '#009b48' : '#2a2d33'}`,
+                            color: earned ? 'white' : '#7d8590',
+                          }}
+                        >
+                          {badge.name.slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="font-semibold text-foreground">{badge.name}</p>
+                            <Badge variant={earned ? "success" : "muted"}>
+                              {earned ? "Earned" : "Locked"}
+                            </Badge>
+                          </div>
+                          <p className="mt-1 text-sm text-secondary">
+                            {badge.description}
+                          </p>
+                        </div>
                       </div>
-                      <p className="mt-1 text-sm text-slate-600">
-                        {badge.description}
-                      </p>
                     </div>
                   );
                 })}
@@ -155,31 +179,31 @@ export function EcoScoreWorkspace() {
 
           <section className="grid gap-6">
             <Card>
-              <h2 className="text-2xl font-semibold">Journey history</h2>
+              <h2 className="text-2xl font-bold text-foreground">Journey history</h2>
               <div className="mt-5 grid gap-3">
                 {dashboardQuery.data.history.length ? (
                   dashboardQuery.data.history.map((item) => (
                     <div
                       key={`${item.journeyId}-${item.timestamp}`}
-                      className="rounded-[24px] border border-line bg-white/85 p-4"
+                      className="rounded-xl border border-line bg-surface-strong p-4"
                     >
                       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                         <div>
-                          <p className="font-semibold">
+                          <p className="font-semibold text-foreground">
                             {item.origin} to {item.destination}
                           </p>
-                          <p className="mt-1 text-sm text-slate-600">
+                          <p className="mt-1 text-sm text-secondary font-mono">
                             {item.distance.toFixed(0)} m travelled
                           </p>
                         </div>
-                        <div className="rounded-[20px] bg-brand-soft px-4 py-3 text-right">
-                          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-strong">
+                        <div className="rounded-lg bg-brand-soft border border-brand/20 px-4 py-3 text-right">
+                          <p className="text-xs font-bold uppercase tracking-[0.2em] text-brand">
                             CO2 saved
                           </p>
-                          <p className="mt-1 font-semibold text-slate-900">
+                          <p className="mt-1 font-bold text-brand font-mono">
                             {item.co2Saved.toFixed(2)} kg
                           </p>
-                          <p className="mt-1 text-xs text-slate-500">
+                          <p className="mt-1 text-xs text-secondary font-mono">
                             {formatDateTime(item.timestamp)}
                           </p>
                         </div>

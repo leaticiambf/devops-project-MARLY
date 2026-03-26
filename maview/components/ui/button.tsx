@@ -7,11 +7,11 @@ type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 
 const variantStyles: Record<ButtonVariant, string> = {
   primary:
-    "bg-brand text-white shadow-[0_12px_24px_rgba(12,124,89,0.18)] hover:bg-brand-strong",
+    "bg-brand text-white hover:bg-brand-strong",
   secondary:
-    "bg-slate-900 text-white shadow-[0_12px_24px_rgba(15,23,42,0.16)] hover:bg-slate-700",
-  ghost: "bg-white/70 text-slate-700 hover:bg-white",
-  danger: "bg-danger text-white hover:bg-rose-700",
+    "bg-surface-strong text-foreground border border-line hover:bg-surface",
+  ghost: "bg-transparent text-secondary border border-line hover:bg-surface-strong hover:text-foreground",
+  danger: "bg-danger text-white hover:opacity-90",
 };
 
 type BaseProps = {
@@ -32,7 +32,7 @@ export function Button({
   ...props
 }: ButtonProps) {
   const styles = cn(
-    "inline-flex items-center justify-center rounded-full px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50",
+    "inline-flex items-center justify-center rounded-lg px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50",
     variantStyles[variant],
     className,
   );

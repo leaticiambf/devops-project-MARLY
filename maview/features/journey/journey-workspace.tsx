@@ -170,11 +170,11 @@ function segmentAccent(segment: JourneyResponse["segments"][number]) {
   }
   switch (segment.segmentType) {
     case "WALKING":
-      return "#7c6f64";
+      return "#7d8590";
     case "TRANSFER":
-      return "#f28f3b";
+      return "#ffd100";
     default:
-      return "#0c7c59";
+      return "#009b48";
   }
 }
 
@@ -759,14 +759,14 @@ export function JourneyWorkspace() {
               }
               hint="Only used when a via stop is set."
             />
-            <label className="grid gap-2 text-sm font-medium text-slate-700">
+            <label className="grid gap-2 self-start text-sm font-medium text-secondary">
               <span>Comfort preset</span>
               <select
                 value={planner.namedComfortSettingId}
                 onChange={(event) =>
                   updatePlanner("namedComfortSettingId", event.target.value)
                 }
-                className="rounded-3xl border border-line bg-white/90 px-4 py-3 text-sm outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
+                className="w-full appearance-none rounded-lg border border-line bg-surface-strong px-4 py-3 text-sm text-foreground font-mono outline-none transition focus:border-brand focus:ring-2 focus:ring-brand-soft"
               >
                 <option value="">No preset</option>
                 {(comfortSettingsQuery.data ?? []).map((setting) => (
@@ -779,7 +779,7 @@ export function JourneyWorkspace() {
           </div>
 
           <div className="mt-6 flex flex-wrap gap-3 text-sm">
-            <label className="flex items-center gap-3 rounded-full bg-white/70 px-4 py-2">
+            <label className="flex items-center gap-3 rounded-lg bg-surface-strong border border-line px-4 py-2 cursor-pointer">
               <input
                 type="checkbox"
                 checked={planner.ecoModeEnabled}
@@ -789,7 +789,7 @@ export function JourneyWorkspace() {
               />
               Eco mode
             </label>
-            <label className="flex items-center gap-3 rounded-full bg-white/70 px-4 py-2">
+            <label className="flex items-center gap-3 rounded-lg bg-surface-strong border border-line px-4 py-2 cursor-pointer">
               <input
                 type="checkbox"
                 checked={planner.wheelchairAccessible}
@@ -799,7 +799,7 @@ export function JourneyWorkspace() {
               />
               Wheelchair access
             </label>
-            <label className="flex items-center gap-3 rounded-full bg-white/70 px-4 py-2">
+            <label className="flex items-center gap-3 rounded-lg bg-surface-strong border border-line px-4 py-2 cursor-pointer">
               <input
                 type="checkbox"
                 checked={planner.includeTaskOptimization}
@@ -862,17 +862,17 @@ export function JourneyWorkspace() {
 
         <Card className="grid gap-5">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
+            <p className="text-xs font-bold uppercase tracking-[0.28em] text-secondary">
               Your Account
             </p>
-            <h2 className="mt-3 text-2xl font-semibold text-slate-950">
+            <h2 className="mt-3 text-2xl font-bold text-foreground">
               {user.displayName}
             </h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">{user.email}</p>
+            <p className="mt-2 text-sm leading-6 text-secondary">{user.email}</p>
           </div>
 
-          <div className="rounded-[24px] bg-white/80 p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
+          <div className="rounded-xl bg-surface-strong border border-line p-5">
+            <p className="text-xs font-bold uppercase tracking-[0.28em] text-secondary">
               Home Address
             </p>
             <Input
@@ -904,11 +904,11 @@ export function JourneyWorkspace() {
             </div>
           </div>
 
-          <div className="rounded-[24px] bg-slate-950 p-5 text-white">
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-white/60">
+          <div className="rounded-xl bg-surface-strong border border-line p-5">
+            <p className="text-xs font-bold uppercase tracking-[0.28em] text-secondary">
               Google Tasks
             </p>
-            <p className="mt-3 text-sm leading-6 text-white/80">
+            <p className="mt-3 text-sm leading-6 text-secondary">
               {googleLinked
                 ? user.googleAccountEmail || "Google Tasks connected"
                 : "Connect Google Tasks on the Tasks page to unlock errand-aware planning and smart suggestions."}
@@ -921,10 +921,10 @@ export function JourneyWorkspace() {
         <Card>
           <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
+              <p className="text-xs font-bold uppercase tracking-[0.28em] text-secondary">
                 Comfort Presets
               </p>
-              <h2 className="mt-2 text-2xl font-semibold">Saved travel preferences</h2>
+              <h2 className="mt-2 text-2xl font-bold text-foreground">Saved travel preferences</h2>
             </div>
             <Button variant="ghost" onClick={() => startEditingSetting()}>
               New preset
@@ -938,10 +938,10 @@ export function JourneyWorkspace() {
                   key={setting.id}
                   type="button"
                   onClick={() => startEditingSetting(setting)}
-                  className="rounded-[24px] border border-line bg-white/80 p-4 text-left transition hover:bg-white"
+                  className="rounded-xl border border-line bg-surface-strong p-4 text-left transition hover:bg-surface"
                 >
-                  <p className="font-semibold text-slate-900">{setting.name}</p>
-                  <p className="mt-1 text-sm text-slate-600">
+                  <p className="font-semibold text-foreground">{setting.name}</p>
+                  <p className="mt-1 text-sm text-secondary">
                     {setting.comfortProfile.directPath || "Flexible route"} ·{" "}
                     {setting.comfortProfile.requireAirConditioning
                       ? "Air conditioning"
@@ -954,20 +954,20 @@ export function JourneyWorkspace() {
                 </button>
               ))
             ) : (
-              <p className="rounded-[24px] bg-white/70 p-4 text-sm text-slate-600">
+              <p className="rounded-xl bg-surface-strong border border-line p-4 text-sm text-secondary">
                 Save a preset to reuse your preferred route style in one click.
               </p>
             )}
           </div>
 
           {showComfortForm ? (
-            <div className="mt-6 rounded-[28px] border border-line bg-surface-muted p-5">
+            <div className="mt-6 rounded-xl border border-line bg-surface-strong p-5">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
+                  <p className="text-xs font-bold uppercase tracking-[0.28em] text-secondary">
                     {editingComfortId ? "Edit preset" : "Create preset"}
                   </p>
-                  <h3 className="mt-2 text-xl font-semibold">
+                  <h3 className="mt-2 text-xl font-bold text-foreground">
                     {editingComfortId ? "Update comfort preset" : "Create a reusable comfort preset"}
                   </h3>
                 </div>
@@ -988,7 +988,7 @@ export function JourneyWorkspace() {
                   }
                   placeholder="Morning commute"
                 />
-                <label className="grid gap-2 text-sm font-medium text-slate-700">
+                <label className="grid gap-2 text-sm font-medium text-secondary">
                   <span>Direct path preference</span>
                   <select
                     value={comfortForm.directPath}
@@ -998,7 +998,7 @@ export function JourneyWorkspace() {
                         directPath: event.target.value as DirectPathPreference,
                       }))
                     }
-                    className="rounded-3xl border border-line bg-white/90 px-4 py-3 text-sm outline-none focus:border-brand focus:ring-4 focus:ring-brand-soft"
+                    className="rounded-lg border border-line bg-surface-strong px-4 py-3 text-sm text-foreground font-mono outline-none focus:border-brand focus:ring-2 focus:ring-brand-soft"
                   >
                     {directPathOptions.map((option) => (
                       <option key={option.value} value={option.value}>
@@ -1046,7 +1046,7 @@ export function JourneyWorkspace() {
                     }))
                   }
                 />
-                <div className="grid gap-3 rounded-[24px] bg-white/70 p-4 text-sm">
+                <div className="grid gap-3 rounded-xl bg-surface-strong border border-line p-4 text-sm">
                   <label className="flex items-center gap-3">
                     <input
                       type="checkbox"
@@ -1102,10 +1102,10 @@ export function JourneyWorkspace() {
         <Card>
           <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
+              <p className="text-xs font-bold uppercase tracking-[0.28em] text-secondary">
                 Smart Suggestions
               </p>
-              <h2 className="mt-2 text-2xl font-semibold">Tomorrow&apos;s likely trips</h2>
+              <h2 className="mt-2 text-2xl font-bold text-foreground">Tomorrow&apos;s likely trips</h2>
             </div>
             <Badge variant="accent">{formatTaskDateOnly(getTomorrowDateString())}</Badge>
           </div>
@@ -1127,12 +1127,12 @@ export function JourneyWorkspace() {
               suggestions.map((task) => (
                 <div
                   key={task.id}
-                  className="rounded-[24px] border border-line bg-white/80 p-4"
+                  className="rounded-xl border border-line bg-surface-strong p-4"
                 >
-                  <p className="font-semibold text-slate-900">
+                  <p className="font-semibold text-foreground">
                     {task.title || "Untitled task"}
                   </p>
-                  <p className="mt-1 text-sm text-slate-600">
+                  <p className="mt-1 text-sm text-secondary">
                     #{task.locationQuery}
                   </p>
                   <div className="mt-3 flex gap-3">
@@ -1156,16 +1156,16 @@ export function JourneyWorkspace() {
       </section>
 
       {!user.hasSeenComfortPrompt && !(comfortSettingsQuery.data?.length ?? 0) ? (
-        <Card className="border-amber-200 bg-gradient-to-br from-amber-50/90 to-white/80">
+        <Card className="border-accent/30 bg-accent-soft">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-amber-800">
+              <p className="text-xs font-bold uppercase tracking-[0.28em] text-accent">
                 Travel Preferences
               </p>
-              <h2 className="mt-2 text-2xl font-semibold">
+              <h2 className="mt-2 text-2xl font-bold text-foreground">
                 Save one travel profile before your next trip
               </h2>
-              <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-700">
+              <p className="mt-3 max-w-3xl text-sm leading-6 text-secondary">
                 Save one preset now if you regularly prefer fewer transfers,
                 wheelchair-friendly routes, or air-conditioned journeys. You can
                 skip this and add one later at any time.
@@ -1202,21 +1202,21 @@ export function JourneyWorkspace() {
                 </Badge>
               ) : null}
             </div>
-            <h2 className="mt-4 text-3xl font-semibold">
+            <h2 className="mt-4 text-3xl font-bold text-foreground">
               {currentJourney.originLabel} to {currentJourney.destinationLabel}
             </h2>
-            <p className="mt-3 text-sm leading-6 text-slate-600">
+            <p className="mt-3 text-sm leading-6 text-secondary">
               Started {formatDateTime(currentJourney.actualDeparture || currentJourney.plannedDeparture)}
               . Planned arrival {formatDateTime(currentJourney.plannedArrival)}.
             </p>
 
-            <div className="mt-6 rounded-full bg-white/70 p-2">
+            <div className="mt-6 rounded-full bg-surface-strong border border-line p-2">
               <div
                 className="h-3 rounded-full bg-brand transition-[width]"
                 style={{ width: `${currentProgress}%` }}
               />
             </div>
-            <p className="mt-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
+            <p className="mt-2 text-xs font-bold uppercase tracking-[0.24em] text-secondary font-mono">
               Progress {currentProgress}%
             </p>
 
@@ -1257,15 +1257,15 @@ export function JourneyWorkspace() {
             </div>
 
             {currentJourney.includedTasks.length ? (
-              <div className="mt-6 rounded-[24px] bg-accent-soft p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-800">
+              <div className="mt-6 rounded-xl bg-accent-soft border border-accent/20 p-4">
+                <p className="text-xs font-bold uppercase tracking-[0.24em] text-accent">
                   Included Tasks
                 </p>
                 <div className="mt-3 grid gap-2">
                   {currentJourney.includedTasks.map((task) => (
                     <div
                       key={`${task.googleTaskId}-${task.title}`}
-                      className="rounded-[20px] bg-white/80 px-4 py-3 text-sm text-slate-700"
+                      className="rounded-lg bg-surface border border-line px-4 py-3 text-sm text-foreground"
                     >
                       {task.title}
                       {task.locationQuery ? ` · ${task.locationQuery}` : ""}
@@ -1277,10 +1277,10 @@ export function JourneyWorkspace() {
           </Card>
 
           <Card>
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
+            <p className="text-xs font-bold uppercase tracking-[0.28em] text-secondary">
               Disruption Support
             </p>
-            <h3 className="mt-2 text-2xl font-semibold">
+            <h3 className="mt-2 text-2xl font-bold text-foreground">
               {disruptionMode === "line"
                 ? "Choose the affected line"
                 : disruptionMode === "station"
@@ -1301,7 +1301,7 @@ export function JourneyWorkspace() {
                       key={`${line.lineCode}-${line.mode}`}
                       type="button"
                       onClick={() => reportLineDisruption.mutate(line.lineCode)}
-                      className="flex items-center justify-between rounded-[24px] border border-line bg-white/80 px-4 py-4 text-left transition hover:bg-white"
+                      className="flex items-center justify-between rounded-xl border border-line bg-surface-strong px-4 py-4 text-left transition hover:bg-surface"
                     >
                       <div className="flex items-center gap-3">
                         <span
@@ -1309,13 +1309,13 @@ export function JourneyWorkspace() {
                           style={{ backgroundColor: line.lineColor ? `#${line.lineColor}` : "#0c7c59" }}
                         />
                         <div>
-                          <p className="font-semibold text-slate-900">
+                          <p className="font-semibold text-foreground">
                             {line.lineCode || "Unknown line"}
                           </p>
-                          <p className="text-sm text-slate-600">{line.lineName}</p>
+                          <p className="text-sm text-secondary">{line.lineName}</p>
                         </div>
                       </div>
-                      <span className="text-sm text-slate-500">{line.mode}</span>
+                      <span className="text-sm text-secondary font-mono">{line.mode}</span>
                     </button>
                   ))
                 ) : (
@@ -1338,10 +1338,10 @@ export function JourneyWorkspace() {
                       key={`${stop.stopPointId}-${stop.sequenceInJourney}`}
                       type="button"
                       onClick={() => reportStopDisruption.mutate(stop.stopPointId)}
-                      className="rounded-[24px] border border-line bg-white/80 px-4 py-4 text-left transition hover:bg-white"
+                      className="rounded-xl border border-line bg-surface-strong px-4 py-4 text-left transition hover:bg-surface"
                     >
-                      <p className="font-semibold text-slate-900">{stop.name}</p>
-                      <p className="mt-1 text-sm text-slate-600">
+                      <p className="font-semibold text-foreground">{stop.name}</p>
+                      <p className="mt-1 text-sm text-secondary">
                         Step {stop.sequenceInJourney + 1}
                         {stop.onLineCode ? ` · Line ${stop.onLineCode}` : ""}
                       </p>
@@ -1368,10 +1368,10 @@ export function JourneyWorkspace() {
       <section className="grid gap-4">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">
+            <p className="text-xs font-bold uppercase tracking-[0.28em] text-secondary">
               Trip Options
             </p>
-            <h2 className="mt-2 text-2xl font-semibold">Available itineraries</h2>
+            <h2 className="mt-2 text-2xl font-bold text-foreground">Available itineraries</h2>
           </div>
           {results.length ? (
             <Badge variant="accent">
@@ -1392,10 +1392,10 @@ export function JourneyWorkspace() {
                       <Badge variant="accent">Comfort preset</Badge>
                     ) : null}
                   </div>
-                  <h3 className="mt-4 text-2xl font-semibold text-slate-950">
+                  <h3 className="mt-4 text-2xl font-bold text-foreground">
                     {journey.originLabel} to {journey.destinationLabel}
                   </h3>
-                  <p className="mt-2 text-sm leading-6 text-slate-600">
+                  <p className="mt-2 text-sm leading-6 text-secondary">
                     {formatDateTime(journey.plannedDeparture)} to{" "}
                     {formatDateTime(journey.plannedArrival)} ·{" "}
                     {formatDuration(resultDuration(journey))}
@@ -1406,7 +1406,7 @@ export function JourneyWorkspace() {
                       {journey.includedTasks.map((task) => (
                         <span
                           key={`${task.googleTaskId}-${task.title}`}
-                          className="rounded-full bg-accent-soft px-3 py-1 text-xs font-semibold text-amber-800"
+                          className="rounded-full bg-accent-soft px-3 py-1 text-xs font-semibold text-[#131518]"
                         >
                           {task.title}
                         </span>
@@ -1415,15 +1415,15 @@ export function JourneyWorkspace() {
                   ) : null}
 
                   {journey.tasksOnRoute.length ? (
-                    <div className="mt-4 rounded-[24px] bg-brand-soft p-4">
-                      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-brand-strong">
+                    <div className="mt-4 rounded-xl bg-brand-soft border border-brand/20 p-4">
+                      <p className="text-xs font-bold uppercase tracking-[0.24em] text-brand">
                         Nearby tasks
                       </p>
                       <div className="mt-3 grid gap-2">
                         {journey.tasksOnRoute.map((task) => (
                           <div
                             key={`${task.taskId}-${task.title}`}
-                            className="rounded-[20px] bg-white/85 px-4 py-3 text-sm text-slate-700"
+                            className="rounded-lg bg-surface border border-line px-4 py-3 text-sm text-foreground"
                           >
                             {task.title} · {formatDistance(task.distanceMeters)}
                           </div>
@@ -1433,35 +1433,56 @@ export function JourneyWorkspace() {
                   ) : null}
                 </div>
 
-                <div className="w-full max-w-sm rounded-[24px] bg-white/80 p-5">
-                  <div className="grid gap-3">
+                <div className="w-full max-w-sm rounded-xl bg-surface-strong border border-line p-5">
+                  <div className="grid gap-0">
                     {journey.segments.map((segment) => (
-                      <div
-                        key={segment.segmentId}
-                        className="rounded-[20px] border border-line px-4 py-4"
-                      >
-                        <div className="flex items-center gap-3">
-                          <span
-                            className="h-3 w-3 rounded-full"
+                      <div key={segment.segmentId} className="flex gap-3">
+                        <div className="flex flex-col items-center">
+                          <div
+                            className="w-3 h-3 rounded-full flex-shrink-0"
                             style={{ backgroundColor: segmentAccent(segment) }}
                           />
-                          <p className="text-sm font-semibold uppercase tracking-[0.22em] text-slate-500">
-                            {segmentModeLabel(segment)}
+                          <div
+                            className="flex-1 my-1"
+                            style={
+                              segment.segmentType === "WALKING"
+                                ? { borderLeft: `2px dashed ${segmentAccent(segment)}`, width: 0 }
+                                : { width: "2px", backgroundColor: segmentAccent(segment) }
+                            }
+                          />
+                          <div
+                            className="w-3 h-3 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: segmentAccent(segment) }}
+                          />
+                        </div>
+                        <div className="flex-1 pb-4">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {segment.lineName ? (
+                              <span
+                                className="transit-line-badge"
+                                style={{ backgroundColor: segmentAccent(segment) }}
+                              >
+                                {segment.lineName}
+                              </span>
+                            ) : null}
+                            <span className="text-xs font-bold uppercase tracking-[0.18em] text-secondary font-mono">
+                              {segmentModeLabel(segment)}
+                            </span>
+                          </div>
+                          <p className="mt-1 font-semibold text-foreground text-sm">
+                            {segmentTitle(segment)}
+                          </p>
+                          <p className="mt-1 text-xs text-secondary font-mono">
+                            {segment.scheduledDeparture
+                              ? formatDateTime(segment.scheduledDeparture)
+                              : "Unknown departure"}
+                            {" · "}
+                            {formatDuration(segment.durationSeconds)}
+                            {segment.distanceMeters != null
+                              ? ` · ${formatDistance(segment.distanceMeters)}`
+                              : ""}
                           </p>
                         </div>
-                        <p className="mt-2 font-semibold text-slate-900">
-                          {segmentTitle(segment)}
-                        </p>
-                        <p className="mt-1 text-sm text-slate-600">
-                          {segment.scheduledDeparture
-                            ? formatDateTime(segment.scheduledDeparture)
-                            : "Unknown departure"}
-                          {" · "}
-                          {formatDuration(segment.durationSeconds)}
-                          {segment.distanceMeters != null
-                            ? ` · ${formatDistance(segment.distanceMeters)}`
-                            : ""}
-                        </p>
                       </div>
                     ))}
                   </div>

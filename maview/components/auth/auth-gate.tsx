@@ -20,13 +20,13 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
   if (isRestoring || !isAuthenticated) {
     return (
-      <Card className="mx-auto mt-20 max-w-2xl">
-        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
+      <Card className="mx-auto mt-20 max-w-2xl border-l-4 border-l-brand">
+        <p className="text-xs font-bold uppercase tracking-[0.3em] text-secondary font-mono">
           Session
         </p>
         <h1 className="mt-3 page-title">Restoring access</h1>
         <p className="mt-3 page-copy">
-          We’re checking your account before opening this page. If you are not
+          We're checking your account before opening this page. If you are not
           signed in, you will be redirected to the login screen.
         </p>
       </Card>
