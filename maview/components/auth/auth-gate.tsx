@@ -26,7 +26,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
         </p>
         <h1 className="mt-3 page-title">Restoring access</h1>
         <p className="mt-3 page-copy">
-          We're checking your account before opening this page. If you are not
+          We are checking your account before opening this page. If you are not
           signed in, you will be redirected to the login screen.
         </p>
       </Card>

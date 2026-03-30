@@ -16,8 +16,8 @@
   --success: #009b48;
   --secondary: #7a8ba8;
   --shadow: 0 4px 32px rgba(0, 0, 0, 0.5);
-  --font-sans: 'Archivo', sans-serif;
-  --font-mono: 'IBM Plex Mono', monospace;
+  --font-sans: "Trebuchet MS", "Avenir Next", Arial, sans-serif;
+  --font-mono: "SFMono-Regular", "IBM Plex Mono", Consolas, monospace;
 }
 
 @theme inline {
