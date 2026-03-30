@@ -4,7 +4,7 @@ Mavigo is a split web application for planning Paris public transport journeys, 
 
 ## Repository Layout
 
-- `Mavigo/`: Spring Boot backend, API, OAuth, persistence, and frontend redirect entrypoints
+- `Mavigo/`: Spring Boot backend, API, OAuth, and persistence
 - `maview/`: Next.js frontend, App Router UI, frontend-side rewrites, and frontend tests
 - `docs/`: technical documentation and project diagrams
 
@@ -50,8 +50,8 @@ Backend (`Mavigo/local.env`, see `Mavigo/local.env.example`):
 Google OAuth setup note:
 
 - Register `${APP_OAUTH_REDIRECT_BASE_URL}/login/oauth2/code/google` as an authorized redirect URI in Google Cloud
-- Local development is currently configured for `http://localhost:8080/login/oauth2/code/google`
-- After the frontend-owned callback is registered, point `APP_OAUTH_REDIRECT_BASE_URL` at the frontend origin instead
+- Local development is configured for `http://localhost:3000/login/oauth2/code/google`
+- Hosted environments should point `APP_OAUTH_REDIRECT_BASE_URL` at the deployed frontend origin
 
 Optional backend development helpers:
 
@@ -102,5 +102,5 @@ cd Mavigo
 
 - Set `NEXT_PUBLIC_APP_URL` to the real frontend URL in production
 - Set `BACKEND_ORIGIN` to the deployed backend URL in production
-- Set `APP_FRONTEND_BASE_URL`, `APP_FRONTEND_ALLOWED_ORIGINS`, and `APP_OAUTH_REDIRECT_BASE_URL` to the deployed frontend URL(s) once Google Cloud is updated
+- Set `APP_FRONTEND_BASE_URL`, `APP_FRONTEND_ALLOWED_ORIGINS`, and `APP_OAUTH_REDIRECT_BASE_URL` to the deployed frontend URL(s)
 - The backend enables forwarded-header handling so OAuth redirects and absolute URLs work correctly behind a reverse proxy

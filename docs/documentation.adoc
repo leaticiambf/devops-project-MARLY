@@ -361,7 +361,7 @@ skinparam defaultFontSize 11
 skinparam padding 2
 
 together {
-  rectangle "**Frontend** (HTML/CSS/JS ES Modules)" as Frontend #lightyellow
+  rectangle "**Frontend** (Next.js App Router)" as Frontend #lightyellow
 }
 
 together {
@@ -372,7 +372,6 @@ together {
     [DisruptionController] as DC
     [EcoScoreController] as EC
     [AuthController] as AC
-    [FrontendController] as FC
   }
 }
 
@@ -1021,7 +1020,6 @@ package "org.marly.mavigo" #white {
             class DisruptionController
             class EcoScoreController
             class AuthController
-            class FrontendController
         }
     }
 
@@ -1966,7 +1964,7 @@ Enforced by `PasswordValidator`:
 |Access Level |Endpoints
 
 |**Public** (no token required)
-|`POST /api/users` (register), `POST /api/users/login`, `/oauth2/**`, static resources, `/`, `/search`, `/tasks`, `/results`
+|`POST /api/users` (register), `POST /api/users/login`, `/api/auth/login`, `/oauth2/**`, `/login/oauth2/**`, `/actuator/health`, `/actuator/info`, `/favicon.ico`
 
 |**Authenticated** (JWT required)
 |All other `/api/**` endpoints
@@ -1995,7 +1993,7 @@ Mavigo integrates with Google Tasks API v1 to allow users to:
    - Create OAuth 2.0 Client ID
    - Application type: Web application
    - Authorized redirect URIs:
-     * `http://localhost:8080/login/oauth2/code/google` (development)
+     * `http://localhost:3000/login/oauth2/code/google` (development)
      * `https://your-domain.com/login/oauth2/code/google` (production)
 
 4. **Note your credentials**:
@@ -2134,16 +2132,9 @@ The active frontend codebase is organized under `maview/`:
 * Typed API wrappers and environment-aware frontend/backend routing
 * Reusable cards, buttons, state panels, toasts, and layout primitives
 
-=== SPA-Style Routing
+=== Route Ownership
 
-`FrontendController` now redirects legacy backend-served UI paths to the external frontend base URL:
-
-* `/` → `redirect:${app.frontend.base-url}`
-* `/search` → `redirect:${app.frontend.base-url}/search`
-* `/tasks` → `redirect:${app.frontend.base-url}/tasks`
-* `/results` → `redirect:${app.frontend.base-url}/results`
-
-This keeps old backend entrypoints from breaking while the Next.js frontend remains the primary UI.
+The browser targets the frontend origin only. User-facing routes such as `/`, `/tasks`, `/login`, and `/eco-score` are owned by the Next.js application, while the backend exposes API, OAuth callback, health, and logout endpoints.
 
 == Installation Guide
 
@@ -2210,7 +2201,7 @@ Follow the steps in **Section 7 - Google Tasks Integration** to:
 2. Enable Tasks API
 3. Create OAuth2 credentials
 4. Configure redirect URIs:
-   - Development: `http://localhost:8080/login/oauth2/code/google`
+   - Development: `http://localhost:3000/login/oauth2/code/google`
    - Production: `https://your-domain.com/login/oauth2/code/google`
 5. Add Client ID and Secret to `local.env`
 
@@ -2302,7 +2293,7 @@ Check: logs for "PRIM unauthorized" messages
 ```
 Error: redirect_uri_mismatch
 Solution: Ensure redirect URI in Google Cloud Console exactly matches:
-  http://localhost:8080/login/oauth2/code/google
+  http://localhost:3000/login/oauth2/code/google
 ```
 
 **3. H2 Database console not accessible**
@@ -2345,9 +2336,9 @@ This documentation reflects **Mavigo v0.3**, which represents a major feature an
 * **Gamification Badge System**: 16 badges across 3 categories (CO2 milestones, journey count, distance) seeded via `BadgeSeeder`
 * **Smart Suggestions**: Proactive journey suggestions based on tomorrow's Google Tasks with location tags
 * **JWT Authentication**: Password-based user accounts with BCrypt hashing, JWT tokens (HMAC-SHA256, 24h expiry), and `JwtFilter` for API request authentication
-* **Frontend Modularization**: Monolithic `app.js` (~2274 lines) refactored into modular ES modules under `js/core/`, `js/features/`, and `js/ui/`
+* **Frontend Migration**: The UI was moved into the standalone `maview/` Next.js application with route-based pages, shared state providers, and frontend rewrites to the Spring backend
 * **Test Coverage Improvement**: Increased from ~60% to ~85%+ with comprehensive unit and integration tests
-* **SPA-style Routing**: `FrontendController` forwards `/search`, `/tasks`, `/results` to `index.html`
+* **Frontend Cutover**: Legacy backend-served UI routes now redirect to the external frontend origin instead of serving a bundled HTML shell
 
 **Key Changes from v0.1 to v0.2:**
 
@@ -2361,7 +2352,7 @@ This documentation reflects **Mavigo v0.3**, which represents a major feature an
 
 * **Core Entities**: 14 (User, Journey, JourneySegment, JourneyPoint, UserTask, Disruption, PointOfInterest, NamedComfortSetting, ComfortProfile, GeoPoint, Badge, JourneyActivity, UserBadge, PasswordResetToken)
 * **Enums**: 7 (JourneyStatus, SegmentType, JourneyPointType, JourneyPointStatus, TransitMode, DisruptionType, TaskSource)
-* **Controllers**: 7 (JourneyController, UserController, GoogleTasksController, DisruptionController, EcoScoreController, AuthController, FrontendController)
+* **Controllers**: 6 (JourneyController, UserController, GoogleTasksController, DisruptionController, EcoScoreController, AuthController)
 * **Services**: 12+ major service classes (including GamificationService, PasswordValidator, CustomUserDetailsService, TaskSuggestionService, JwtTokenService)
 * **Repositories**: 10 (UserRepository, JourneyRepository, UserTaskRepository, DisruptionRepository, NamedComfortSettingRepository, BadgeRepository, JourneyActivityRepository, UserBadgeRepository, PasswordResetTokenRepository, StopAreaRepository)
 * **API Endpoints**: ~55+ endpoints across 8 categories
