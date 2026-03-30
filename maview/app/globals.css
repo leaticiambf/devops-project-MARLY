@@ -45,15 +45,20 @@
 
 html {
   background:
-    radial-gradient(circle at top right, rgba(56, 189, 248, 0.06), transparent 40%),
-    radial-gradient(circle at bottom left, rgba(0, 155, 72, 0.07), transparent 35%),
+    radial-gradient(circle at top right, rgba(56, 189, 248, 0.08), transparent 36%),
+    radial-gradient(circle at bottom left, rgba(0, 155, 72, 0.09), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 14%),
     #0c1222;
   color: var(--foreground);
 }
 
 body {
   min-height: 100vh;
-  background: transparent;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    transparent;
+  background-size: 100% 100%, 100% 100%, 24px 24px, 24px 24px;
   color: var(--foreground);
   font-family: var(--font-sans);
 }
@@ -100,4 +105,8 @@ select {
   box-shadow:
     0 0 0 1px rgba(0, 155, 72, 0.08),
     0 4px 24px rgba(0, 0, 0, 0.3);
+}
+
+@utility panel-shell {
+  @apply rounded-[1.75rem] border border-line bg-[linear-gradient(180deg,rgba(20,25,41,0.94),rgba(14,18,31,0.98))] shadow-[0_20px_60px_rgba(0,0,0,0.28)];
 }

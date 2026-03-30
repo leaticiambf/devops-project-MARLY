@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -23,7 +23,12 @@ export function LoginForm() {
   const searchParams = useSearchParams();
   const { login } = useAuth();
   const { toast } = useToast();
-  const [isPending, startTransition] = useTransition();
+  const [isPending, setIsPending] = useState(false);
+  const nextHref = searchParams.get("next") || "/";
+
+  useEffect(() => {
+    router.prefetch(nextHref);
+  }, [nextHref, router]);
 
   const {
     register,
@@ -37,25 +42,26 @@ export function LoginForm() {
     },
   });
 
-  function onSubmit(values: LoginFormValues) {
-    startTransition(async () => {
-      try {
-        await login(values);
-        toast({
-          title: "Signed in",
-          description: "Your account is ready.",
-          variant: "success",
-        });
-        router.push(searchParams.get("next") || "/");
-      } catch (error) {
-        toast({
-          title: "Login failed",
-          description:
-            error instanceof Error ? error.message : "Unable to sign in.",
-          variant: "error",
-        });
-      }
-    });
+  async function onSubmit(values: LoginFormValues) {
+    setIsPending(true);
+    try {
+      await login(values);
+      toast({
+        title: "Signed in",
+        description: "Your account is ready.",
+        variant: "success",
+      });
+      router.replace(nextHref);
+    } catch (error) {
+      toast({
+        title: "Login failed",
+        description:
+          error instanceof Error ? error.message : "Unable to sign in.",
+        variant: "error",
+      });
+    } finally {
+      setIsPending(false);
+    }
   }
 
   return (
@@ -65,8 +71,11 @@ export function LoginForm() {
           Login
         </p>
         <h2 className="mt-2 text-3xl font-bold tracking-tight text-foreground">
-          Back to your trips
+          Sign in
         </h2>
+        <p className="mt-3 text-sm leading-6 text-secondary">
+          Open your routes, tasks, and eco progress.
+        </p>
       </div>
 
       <Input

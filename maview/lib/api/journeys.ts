@@ -1,4 +1,4 @@
-import { apiRequest } from "@/lib/api/fetcher";
+import { ApiError, apiRequest } from "@/lib/api/fetcher";
 import type {
   JourneyPlanRequest,
   JourneyResponse,
@@ -7,13 +7,50 @@ import type {
   StopInfo,
 } from "@/lib/types/api";
 
+function isMediaTypeError(error: unknown) {
+  return (
+    error instanceof ApiError &&
+    (error.status === 415 ||
+      (error.message.includes("Content-Type") &&
+        error.message.includes("application/json")))
+  );
+}
+
+function toLegacyPlanPayload(payload: JourneyPlanRequest) {
+  return {
+    userId: payload.journey.userId,
+    originQuery: payload.journey.originQuery,
+    destinationQuery: payload.journey.destinationQuery,
+    departureTime: payload.journey.departureTime,
+    ecoModeEnabled: payload.journey.ecoModeEnabled,
+    wheelchairAccessible: payload.journey.wheelchairAccessible,
+    intermediateQuery: payload.journey.intermediateQuery,
+    intermediateDepartureTime: payload.journey.intermediateDepartureTime,
+    taskDetails: payload.journey.taskDetails,
+    comfortMode: payload.preferences?.comfortMode ?? false,
+    namedComfortSettingId: payload.preferences?.namedComfortSettingId,
+  };
+}
+
 export const journeysApi = {
-  plan(payload: JourneyPlanRequest, token: string) {
-    return apiRequest<JourneyResponse[]>("/api/journeys", {
-      method: "POST",
-      body: payload,
-      token,
-    });
+  async plan(payload: JourneyPlanRequest, token: string) {
+    try {
+      return await apiRequest<JourneyResponse[]>("/api/journeys", {
+        method: "POST",
+        body: payload,
+        token,
+      });
+    } catch (error) {
+      if (!isMediaTypeError(error)) {
+        throw error;
+      }
+
+      return apiRequest<JourneyResponse[]>("/api/journeys", {
+        method: "POST",
+        body: toLegacyPlanPayload(payload),
+        token,
+      });
+    }
   },
   start(journeyId: string, token: string) {
     return apiRequest<JourneyResponse>(`/api/journeys/${journeyId}/start`, {

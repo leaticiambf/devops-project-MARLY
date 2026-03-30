@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -39,7 +39,12 @@ export function RegisterForm() {
   const searchParams = useSearchParams();
   const { register: registerUser } = useAuth();
   const { toast } = useToast();
-  const [isPending, startTransition] = useTransition();
+  const [isPending, setIsPending] = useState(false);
+  const nextHref = searchParams.get("next") || "/";
+
+  useEffect(() => {
+    router.prefetch(nextHref);
+  }, [nextHref, router]);
 
   const {
     register,
@@ -57,25 +62,26 @@ export function RegisterForm() {
     },
   });
 
-  function onSubmit(values: RegisterFormValues) {
-    startTransition(async () => {
-      try {
-        await registerUser(values);
-        toast({
-          title: "Account created",
-          description: "Your account is ready to use.",
-          variant: "success",
-        });
-        router.push(searchParams.get("next") || "/");
-      } catch (error) {
-        toast({
-          title: "Registration failed",
-          description:
-            error instanceof Error ? error.message : "Unable to create account.",
-          variant: "error",
-        });
-      }
-    });
+  async function onSubmit(values: RegisterFormValues) {
+    setIsPending(true);
+    try {
+      await registerUser(values);
+      toast({
+        title: "Account created",
+        description: "Your account is ready to use.",
+        variant: "success",
+      });
+      router.replace(nextHref);
+    } catch (error) {
+      toast({
+        title: "Registration failed",
+        description:
+          error instanceof Error ? error.message : "Unable to create account.",
+        variant: "error",
+      });
+    } finally {
+      setIsPending(false);
+    }
   }
 
   return (
@@ -85,8 +91,11 @@ export function RegisterForm() {
           Register
         </p>
         <h2 className="mt-2 text-3xl font-bold tracking-tight text-foreground">
-          Start planning with confidence
+          Create account
         </h2>
+        <p className="mt-3 text-sm leading-6 text-secondary">
+          Save your details once and keep the planner ready.
+        </p>
       </div>
 
       <div className="grid gap-5 sm:grid-cols-2">

@@ -57,13 +57,7 @@ export function TasksWorkspace() {
         user!.userId,
         getTomorrowDateString(),
         token!,
-      ),
-    enabled: canQueryTasks,
-  });
-
-  const journeyTasksQuery = useQuery({
-    queryKey: ["google-journey-tasks", user?.userId],
-    queryFn: () => googleTasksApi.getTasksForJourney(user!.userId, token!),
+    ),
     enabled: canQueryTasks,
   });
 
@@ -171,18 +165,17 @@ export function TasksWorkspace() {
   return (
     <div className="grid gap-6">
       <section className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-        <Card>
+        <Card className="rounded-[2rem]">
           <div className="flex flex-wrap items-center gap-3">
             <Badge variant={googleLinked ? "success" : "accent"}>
               {googleLinked ? "Google Tasks connected" : "Connection needed"}
             </Badge>
             <Badge variant="muted">Task sync</Badge>
           </div>
-          <h1 className="mt-5 page-title text-foreground">Keep your errands close to the route</h1>
+          <h1 className="mt-5 page-title text-foreground">My Tasks</h1>
           <p className="mt-4 page-copy">
-            Connect Google Tasks to bring your default list into Mavigo, complete
-            errands from the app, and make route planning aware of what you need
-            to get done.
+            Keep the errands that matter close to route planning, without
+            turning this page into another dashboard.
           </p>
           <div className="mt-6 rounded-lg bg-surface-strong border border-line p-5">
             <p className="text-xs font-bold uppercase tracking-[0.28em] text-secondary font-mono">
@@ -196,17 +189,10 @@ export function TasksWorkspace() {
           </div>
           <div className="mt-6 flex flex-wrap gap-3">
             <Button onClick={openGooglePopup}>Link Google Tasks</Button>
-            <Button
-              variant="ghost"
-              onClick={() => refreshUser()}
-              disabled={!user?.userId}
-            >
-              Refresh status
-            </Button>
           </div>
         </Card>
 
-        <Card>
+        <Card className="rounded-[2rem]">
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.28em] text-secondary">
@@ -216,14 +202,19 @@ export function TasksWorkspace() {
                 {defaultListQuery.data?.title || "Connect Google Tasks to load a list"}
               </h2>
             </div>
-            <label className="flex items-center gap-3 rounded-lg bg-surface-strong border border-line px-4 py-2 text-sm font-medium text-secondary cursor-pointer">
-              <input
-                type="checkbox"
-                checked={includeCompleted}
-                onChange={(event) => setIncludeCompleted(event.target.checked)}
-              />
-              Include completed
-            </label>
+            <div className="flex items-center gap-3">
+              <Badge variant="accent">
+                {tasksQuery.data?.filter((task) => Boolean(task.locationQuery)).length ?? 0} ready
+              </Badge>
+              <label className="flex items-center gap-3 rounded-lg bg-surface-strong border border-line px-4 py-2 text-sm font-medium text-secondary cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={includeCompleted}
+                  onChange={(event) => setIncludeCompleted(event.target.checked)}
+                />
+                Include completed
+              </label>
+            </div>
           </div>
 
           {defaultListQuery.isLoading ? (
@@ -275,9 +266,14 @@ export function TasksWorkspace() {
                   >
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                       <div>
-                        <h3 className="text-lg font-semibold text-foreground">
-                          {task.title || "Untitled task"}
-                        </h3>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="text-lg font-semibold text-foreground">
+                            {task.title || "Untitled task"}
+                          </h3>
+                          {task.locationQuery ? (
+                            <Badge variant="success">Route-ready</Badge>
+                          ) : null}
+                        </div>
                         <p className="mt-2 text-sm text-secondary">
                           {task.locationQuery
                             ? `Route tag: ${task.locationQuery}`
@@ -318,62 +314,8 @@ export function TasksWorkspace() {
         </Card>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-2">
-        <Card>
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.28em] text-secondary">
-                Route Planning Feed
-              </p>
-              <h2 className="mt-2 text-2xl font-bold text-foreground">
-                Tasks ready for route planning
-              </h2>
-            </div>
-            <Badge variant="accent">
-              {journeyTasksQuery.data?.length ?? 0} ready
-            </Badge>
-          </div>
-
-          <div className="mt-5 grid gap-3">
-            {journeyTasksQuery.isLoading ? (
-              <StatePanel
-                eyebrow="Loading"
-                title="Checking route-ready tasks"
-                description="We’re looking for tasks with enough location detail to appear in planning."
-              />
-            ) : journeyTasksQuery.error ? (
-              <StatePanel
-                eyebrow="Unavailable"
-                title="Route-ready tasks are unavailable"
-                description={journeyTasksQuery.error.message}
-                tone="danger"
-              />
-            ) : journeyTasksQuery.data?.length ? (
-              journeyTasksQuery.data.map((task) => (
-                <div
-                  key={task.id}
-                  className="rounded-xl border border-line bg-surface-strong p-4"
-                >
-                  <p className="font-semibold text-foreground">{task.title}</p>
-                  <p className="mt-1 text-sm text-secondary">
-                    {task.locationQuery}
-                  </p>
-                  <p className="mt-1 text-sm text-secondary font-mono">
-                    {task.lat.toFixed(4)}, {task.lng.toFixed(4)}
-                  </p>
-                </div>
-              ))
-            ) : (
-              <StatePanel
-                eyebrow="No route tags yet"
-                title="No task is ready for route planning"
-                description="Add a `#mavigo:` location tag in Google Tasks to make an errand available for route planning."
-              />
-            )}
-          </div>
-        </Card>
-
-        <Card>
+      <section className="grid gap-6">
+        <Card className="rounded-[2rem]">
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.28em] text-secondary">

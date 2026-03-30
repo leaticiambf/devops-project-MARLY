@@ -16,12 +16,9 @@ import { googleTasksApi } from "@/lib/api/google";
 import { journeysApi } from "@/lib/api/journeys";
 import { usersApi } from "@/lib/api/users";
 import type {
-  ComfortProfile,
-  DirectPathPreference,
   JourneyPlanRequest,
   JourneyResponse,
   LineInfo,
-  NamedComfortSetting,
   StopInfo,
 } from "@/lib/types/api";
 import {
@@ -37,33 +34,6 @@ import {
 import { useAuth } from "@/providers/auth-provider";
 import { useToast } from "@/providers/toast-provider";
 
-const directPathOptions: Array<{
-  value: DirectPathPreference;
-  label: string;
-  description: string;
-}> = [
-  {
-    value: "indifferent",
-    label: "Flexible",
-    description: "Allow direct and transfer-heavy routes.",
-  },
-  {
-    value: "only",
-    label: "Direct only",
-    description: "Prefer direct paths only.",
-  },
-  {
-    value: "only_with_alternatives",
-    label: "Direct if possible",
-    description: "Prefer direct paths but keep alternatives.",
-  },
-  {
-    value: "none",
-    label: "Transfers welcome",
-    description: "Do not bias toward direct paths.",
-  },
-];
-
 type PlannerState = {
   originQuery: string;
   destinationQuery: string;
@@ -76,67 +46,11 @@ type PlannerState = {
   includeTaskOptimization: boolean;
 };
 
-type ComfortFormState = {
-  name: string;
-  directPath: DirectPathPreference;
-  requireAirConditioning: boolean;
-  maxNbTransfers: string;
-  maxWaitingDuration: string;
-  maxWalkingDuration: string;
-  wheelchairAccessible: boolean;
-};
-
 type PlanningOutcome = {
   journeys: JourneyResponse[];
   fallbackUsed: boolean;
   taskOptimizationAttempted: boolean;
 };
-
-const defaultComfortForm: ComfortFormState = {
-  name: "",
-  directPath: "indifferent",
-  requireAirConditioning: false,
-  maxNbTransfers: "",
-  maxWaitingDuration: "",
-  maxWalkingDuration: "",
-  wheelchairAccessible: false,
-};
-
-function comfortProfileToForm(setting?: NamedComfortSetting | null): ComfortFormState {
-  return {
-    name: setting?.name ?? "",
-    directPath: (setting?.comfortProfile.directPath as DirectPathPreference) ?? "indifferent",
-    requireAirConditioning: Boolean(setting?.comfortProfile.requireAirConditioning),
-    maxNbTransfers:
-      setting?.comfortProfile.maxNbTransfers != null
-        ? String(setting.comfortProfile.maxNbTransfers)
-        : "",
-    maxWaitingDuration:
-      setting?.comfortProfile.maxWaitingDuration != null
-        ? String(Math.round(setting.comfortProfile.maxWaitingDuration / 60))
-        : "",
-    maxWalkingDuration:
-      setting?.comfortProfile.maxWalkingDuration != null
-        ? String(Math.round(setting.comfortProfile.maxWalkingDuration / 60))
-        : "",
-    wheelchairAccessible: Boolean(setting?.comfortProfile.wheelchairAccessible),
-  };
-}
-
-function formToComfortProfile(form: ComfortFormState): ComfortProfile {
-  return {
-    directPath: form.directPath,
-    requireAirConditioning: form.requireAirConditioning,
-    maxNbTransfers: form.maxNbTransfers ? Number(form.maxNbTransfers) : null,
-    maxWaitingDuration: form.maxWaitingDuration
-      ? Number(form.maxWaitingDuration) * 60
-      : null,
-    maxWalkingDuration: form.maxWalkingDuration
-      ? Number(form.maxWalkingDuration) * 60
-      : null,
-    wheelchairAccessible: form.wheelchairAccessible,
-  };
-}
 
 function resultDuration(journey: JourneyResponse) {
   const fromDates =
@@ -205,7 +119,7 @@ async function completeIncludedGoogleTasks(
 
 export function JourneyWorkspace() {
   const queryClient = useQueryClient();
-  const { user, token, refreshUser } = useAuth();
+  const { user, token } = useAuth();
   const { toast } = useToast();
 
   const [planner, setPlanner] = useState<PlannerState>({
@@ -222,11 +136,8 @@ export function JourneyWorkspace() {
   const [results, setResults] = useState<JourneyResponse[]>([]);
   const [currentJourney, setCurrentJourney] = useState<JourneyResponse | null>(null);
   const [journeyMessage, setJourneyMessage] = useState<string | null>(null);
-  const [homeAddressDraft, setHomeAddressDraft] = useState<string | null>(null);
-  const [comfortForm, setComfortForm] = useState<ComfortFormState>(defaultComfortForm);
-  const [editingComfortId, setEditingComfortId] = useState<string | null>(null);
-  const [showComfortForm, setShowComfortForm] = useState(false);
   const [disruptionMode, setDisruptionMode] = useState<"line" | "station" | null>(null);
+  const [showOriginSuggestion, setShowOriginSuggestion] = useState(false);
 
   const googleLinked = Boolean(user?.googleAccountLinked);
 
@@ -255,97 +166,6 @@ export function JourneyWorkspace() {
     enabled: Boolean(
       currentJourney?.journeyId && token && disruptionMode === "station",
     ),
-  });
-
-  const saveHomeAddress = useMutation({
-    mutationFn: (value: string) =>
-      usersApi.updateHomeAddress(user!.userId, value, token!),
-    onSuccess: async (updatedUser) => {
-      setHomeAddressDraft(updatedUser.homeAddress ?? "");
-      await refreshUser();
-      toast({
-        title: updatedUser.homeAddress ? "Home saved" : "Home cleared",
-        description: updatedUser.homeAddress
-          ? "Smart suggestions can now prefill the planner."
-          : "The saved home address was removed.",
-        variant: "success",
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: "Home update failed",
-        description:
-          error instanceof Error ? error.message : "Could not save the home address.",
-        variant: "error",
-      });
-    },
-  });
-
-  const saveComfortSetting = useMutation({
-    mutationFn: async () => {
-      const payload = {
-        name: comfortForm.name.trim(),
-        comfortProfile: formToComfortProfile(comfortForm),
-      };
-
-      if (editingComfortId) {
-        return usersApi.updateComfortSetting(
-          user!.userId,
-          editingComfortId,
-          payload,
-          token!,
-        );
-      }
-
-      return usersApi.createComfortSetting(user!.userId, payload, token!);
-    },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["comfort-settings"] });
-      if (user && !user.hasSeenComfortPrompt) {
-        await usersApi.markComfortPromptSeen(user.userId, token!);
-        await refreshUser();
-      }
-      setComfortForm(defaultComfortForm);
-      setEditingComfortId(null);
-      setShowComfortForm(false);
-      toast({
-        title: "Comfort preset saved",
-        description: "The planner can now reuse this preference profile.",
-        variant: "success",
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: "Comfort preset failed",
-        description:
-          error instanceof Error ? error.message : "Could not save the preset.",
-        variant: "error",
-      });
-    },
-  });
-
-  const deleteComfortSetting = useMutation({
-    mutationFn: (settingId: string) =>
-      usersApi.deleteComfortSetting(user!.userId, settingId, token!),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["comfort-settings"] });
-      setComfortForm(defaultComfortForm);
-      setEditingComfortId(null);
-      setShowComfortForm(false);
-      toast({
-        title: "Comfort preset deleted",
-        description: "The saved preset was removed.",
-        variant: "success",
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: "Delete failed",
-        description:
-          error instanceof Error ? error.message : "Could not delete the preset.",
-        variant: "error",
-      });
-    },
   });
 
   const planJourney = useMutation({
@@ -656,6 +476,25 @@ export function JourneyWorkspace() {
     return notices;
   }, [googleLinked, planner]);
 
+  const homeAddressSuggestion = useMemo(() => {
+    const homeAddress = user?.homeAddress?.trim();
+    const originQuery = planner.originQuery.trim().toLowerCase();
+
+    if (!homeAddress) {
+      return null;
+    }
+
+    if (!originQuery) {
+      return homeAddress;
+    }
+
+    if (homeAddress.toLowerCase().includes(originQuery) && homeAddress !== planner.originQuery.trim()) {
+      return homeAddress;
+    }
+
+    return null;
+  }, [planner.originQuery, user?.homeAddress]);
+
   function updatePlanner<K extends keyof PlannerState>(key: K, value: PlannerState[K]) {
     setPlanner((current) => ({
       ...current,
@@ -689,18 +528,6 @@ export function JourneyWorkspace() {
     });
   }
 
-  function startEditingSetting(setting?: NamedComfortSetting) {
-    setEditingComfortId(setting?.id ?? null);
-    setComfortForm(comfortProfileToForm(setting));
-    setShowComfortForm(true);
-  }
-
-  function clearComfortEditor() {
-    setEditingComfortId(null);
-    setComfortForm(defaultComfortForm);
-    setShowComfortForm(false);
-  }
-
   if (!user || !token) {
     return null;
   }
@@ -708,26 +535,56 @@ export function JourneyWorkspace() {
   return (
     <div className="grid gap-6">
       <section className="grid gap-6 xl:grid-cols-[1.3fr_0.7fr]">
-        <Card>
+        <Card className="rounded-[2rem]">
           <div className="flex flex-wrap items-center gap-3">
             <Badge variant="accent">Journey Planner</Badge>
             <Badge variant={googleLinked ? "success" : "muted"}>
               {googleLinked ? "Task-aware planning ready" : "Task sync optional"}
             </Badge>
           </div>
-          <h1 className="mt-5 page-title">Plan, start, and adapt each trip with confidence</h1>
+          <h1 className="mt-5 page-title">Plan the next trip</h1>
           <p className="mt-4 page-copy">
-            Build your route, apply saved comfort preferences, include errands
-            when they fit, and respond quickly if the journey changes.
+            Set the route, apply one saved comfort preset, and keep errands in
+            the mix only when they actually help.
           </p>
 
           <div className="mt-8 grid gap-4 md:grid-cols-2">
-            <Input
-              label="From"
-              value={planner.originQuery}
-              onChange={(event) => updatePlanner("originQuery", event.target.value)}
-              placeholder="Gare de Lyon"
-            />
+            <div className="relative">
+              <Input
+                label="From"
+                value={planner.originQuery}
+                onChange={(event) => updatePlanner("originQuery", event.target.value)}
+                onFocus={() => setShowOriginSuggestion(true)}
+                onBlur={() => {
+                  window.setTimeout(() => setShowOriginSuggestion(false), 120);
+                }}
+                placeholder="Gare de Lyon"
+                autoComplete="off"
+              />
+              {showOriginSuggestion && homeAddressSuggestion ? (
+                <button
+                  type="button"
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    updatePlanner("originQuery", homeAddressSuggestion);
+                    setShowOriginSuggestion(false);
+                  }}
+                  className="absolute left-0 right-0 top-full z-20 mt-2 flex items-start justify-between rounded-2xl border border-line bg-surface px-4 py-3 text-left shadow-[0_18px_40px_rgba(0,0,0,0.28)] transition hover:border-brand/30 hover:bg-surface-strong"
+                >
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold uppercase tracking-[0.22em] text-secondary">
+                      Home
+                    </p>
+                    <p className="mt-1 truncate text-sm font-medium text-foreground">
+                      {homeAddressSuggestion}
+                    </p>
+                  </div>
+                  <span className="ml-4 text-xs uppercase tracking-[0.18em] text-secondary">
+                    Use
+                  </span>
+                </button>
+              ) : null}
+            </div>
             <Input
               label="To"
               value={planner.destinationQuery}
@@ -775,6 +632,11 @@ export function JourneyWorkspace() {
                   </option>
                 ))}
               </select>
+              {(comfortSettingsQuery.data?.length ?? 0) === 0 ? (
+                <span className="text-xs text-secondary">
+                  Create presets from your profile menu in the top bar.
+                </span>
+              ) : null}
             </label>
           </div>
 
@@ -860,246 +722,7 @@ export function JourneyWorkspace() {
           ) : null}
         </Card>
 
-        <Card className="grid gap-5">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.28em] text-secondary">
-              Your Account
-            </p>
-            <h2 className="mt-3 text-2xl font-bold text-foreground">
-              {user.displayName}
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-secondary">{user.email}</p>
-          </div>
-
-          <div className="rounded-xl bg-surface-strong border border-line p-5">
-            <p className="text-xs font-bold uppercase tracking-[0.28em] text-secondary">
-              Home Address
-            </p>
-            <Input
-              label="Saved home"
-              value={homeAddressDraft ?? user.homeAddress ?? ""}
-              onChange={(event) => setHomeAddressDraft(event.target.value)}
-              placeholder="12 Rue de Rivoli, Paris"
-            />
-            <div className="mt-3 flex gap-3">
-              <Button
-                variant="ghost"
-                onClick={() =>
-                  saveHomeAddress.mutate((homeAddressDraft ?? user.homeAddress ?? "").trim())
-                }
-                disabled={saveHomeAddress.isPending}
-              >
-                Save home
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  setHomeAddressDraft("");
-                  saveHomeAddress.mutate("");
-                }}
-                disabled={saveHomeAddress.isPending}
-              >
-                Clear
-              </Button>
-            </div>
-          </div>
-
-          <div className="rounded-xl bg-surface-strong border border-line p-5">
-            <p className="text-xs font-bold uppercase tracking-[0.28em] text-secondary">
-              Google Tasks
-            </p>
-            <p className="mt-3 text-sm leading-6 text-secondary">
-              {googleLinked
-                ? user.googleAccountEmail || "Google Tasks connected"
-                : "Connect Google Tasks on the Tasks page to unlock errand-aware planning and smart suggestions."}
-            </p>
-          </div>
-        </Card>
-      </section>
-
-      <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-        <Card>
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.28em] text-secondary">
-                Comfort Presets
-              </p>
-              <h2 className="mt-2 text-2xl font-bold text-foreground">Saved travel preferences</h2>
-            </div>
-            <Button variant="ghost" onClick={() => startEditingSetting()}>
-              New preset
-            </Button>
-          </div>
-
-          <div className="mt-5 grid gap-3">
-            {comfortSettingsQuery.data?.length ? (
-              comfortSettingsQuery.data.map((setting) => (
-                <button
-                  key={setting.id}
-                  type="button"
-                  onClick={() => startEditingSetting(setting)}
-                  className="rounded-xl border border-line bg-surface-strong p-4 text-left transition hover:bg-surface"
-                >
-                  <p className="font-semibold text-foreground">{setting.name}</p>
-                  <p className="mt-1 text-sm text-secondary">
-                    {setting.comfortProfile.directPath || "Flexible route"} ·{" "}
-                    {setting.comfortProfile.requireAirConditioning
-                      ? "Air conditioning"
-                      : "No AC constraint"}{" "}
-                    ·{" "}
-                    {setting.comfortProfile.maxNbTransfers != null
-                      ? `${setting.comfortProfile.maxNbTransfers} transfer max`
-                      : "Flexible transfers"}
-                  </p>
-                </button>
-              ))
-            ) : (
-              <p className="rounded-xl bg-surface-strong border border-line p-4 text-sm text-secondary">
-                Save a preset to reuse your preferred route style in one click.
-              </p>
-            )}
-          </div>
-
-          {showComfortForm ? (
-            <div className="mt-6 rounded-xl border border-line bg-surface-strong p-5">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.28em] text-secondary">
-                    {editingComfortId ? "Edit preset" : "Create preset"}
-                  </p>
-                  <h3 className="mt-2 text-xl font-bold text-foreground">
-                    {editingComfortId ? "Update comfort preset" : "Create a reusable comfort preset"}
-                  </h3>
-                </div>
-                <Button variant="ghost" onClick={clearComfortEditor}>
-                  Close
-                </Button>
-              </div>
-
-              <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                <Input
-                  label="Preset name"
-                  value={comfortForm.name}
-                  onChange={(event) =>
-                    setComfortForm((current) => ({
-                      ...current,
-                      name: event.target.value,
-                    }))
-                  }
-                  placeholder="Morning commute"
-                />
-                <label className="grid gap-2 text-sm font-medium text-secondary">
-                  <span>Direct path preference</span>
-                  <select
-                    value={comfortForm.directPath}
-                    onChange={(event) =>
-                      setComfortForm((current) => ({
-                        ...current,
-                        directPath: event.target.value as DirectPathPreference,
-                      }))
-                    }
-                    className="rounded-lg border border-line bg-surface-strong px-4 py-3 text-sm text-foreground font-mono outline-none focus:border-brand focus:ring-2 focus:ring-brand-soft"
-                  >
-                    {directPathOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <Input
-                  label="Max transfers"
-                  type="number"
-                  min={0}
-                  max={10}
-                  value={comfortForm.maxNbTransfers}
-                  onChange={(event) =>
-                    setComfortForm((current) => ({
-                      ...current,
-                      maxNbTransfers: event.target.value,
-                    }))
-                  }
-                />
-                <Input
-                  label="Max waiting (minutes)"
-                  type="number"
-                  min={0}
-                  max={120}
-                  value={comfortForm.maxWaitingDuration}
-                  onChange={(event) =>
-                    setComfortForm((current) => ({
-                      ...current,
-                      maxWaitingDuration: event.target.value,
-                    }))
-                  }
-                />
-                <Input
-                  label="Max walking (minutes)"
-                  type="number"
-                  min={0}
-                  max={120}
-                  value={comfortForm.maxWalkingDuration}
-                  onChange={(event) =>
-                    setComfortForm((current) => ({
-                      ...current,
-                      maxWalkingDuration: event.target.value,
-                    }))
-                  }
-                />
-                <div className="grid gap-3 rounded-xl bg-surface-strong border border-line p-4 text-sm">
-                  <label className="flex items-center gap-3">
-                    <input
-                      type="checkbox"
-                      checked={comfortForm.requireAirConditioning}
-                      onChange={(event) =>
-                        setComfortForm((current) => ({
-                          ...current,
-                          requireAirConditioning: event.target.checked,
-                        }))
-                      }
-                    />
-                    Require air conditioning
-                  </label>
-                  <label className="flex items-center gap-3">
-                    <input
-                      type="checkbox"
-                      checked={comfortForm.wheelchairAccessible}
-                      onChange={(event) =>
-                        setComfortForm((current) => ({
-                          ...current,
-                          wheelchairAccessible: event.target.checked,
-                        }))
-                      }
-                    />
-                    Wheelchair accessible
-                  </label>
-                </div>
-              </div>
-
-              <div className="mt-5 flex flex-wrap gap-3">
-                <Button
-                  onClick={() => saveComfortSetting.mutate()}
-                  disabled={
-                    saveComfortSetting.isPending || !comfortForm.name.trim()
-                  }
-                >
-                  {saveComfortSetting.isPending ? "Saving..." : "Save preset"}
-                </Button>
-                {editingComfortId ? (
-                  <Button
-                    variant="danger"
-                    onClick={() => deleteComfortSetting.mutate(editingComfortId)}
-                    disabled={deleteComfortSetting.isPending}
-                  >
-                    Delete preset
-                  </Button>
-                ) : null}
-              </div>
-            </div>
-          ) : null}
-        </Card>
-
-        <Card>
+        <Card className="rounded-[2rem]">
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.28em] text-secondary">
@@ -1154,41 +777,6 @@ export function JourneyWorkspace() {
           </div>
         </Card>
       </section>
-
-      {!user.hasSeenComfortPrompt && !(comfortSettingsQuery.data?.length ?? 0) ? (
-        <Card className="border-accent/30 bg-accent-soft">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.28em] text-accent">
-                Travel Preferences
-              </p>
-              <h2 className="mt-2 text-2xl font-bold text-foreground">
-                Save one travel profile before your next trip
-              </h2>
-              <p className="mt-3 max-w-3xl text-sm leading-6 text-secondary">
-                Save one preset now if you regularly prefer fewer transfers,
-                wheelchair-friendly routes, or air-conditioned journeys. You can
-                skip this and add one later at any time.
-              </p>
-            </div>
-            <div className="flex gap-3">
-              <Button onClick={() => startEditingSetting()}>
-                Create comfort preset
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  void usersApi.markComfortPromptSeen(user.userId, token).then(() => {
-                    void refreshUser();
-                  });
-                }}
-              >
-                Skip for now
-              </Button>
-            </div>
-          </div>
-        </Card>
-      ) : null}
 
       {currentJourney ? (
         <section className="grid gap-6 xl:grid-cols-[1fr_0.9fr]">
@@ -1365,23 +953,21 @@ export function JourneyWorkspace() {
         </section>
       ) : null}
 
-      <section className="grid gap-4">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.28em] text-secondary">
-              Trip Options
-            </p>
-            <h2 className="mt-2 text-2xl font-bold text-foreground">Available itineraries</h2>
-          </div>
-          {results.length ? (
+      {results.length ? (
+        <section className="grid gap-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.28em] text-secondary">
+                Trip Options
+              </p>
+              <h2 className="mt-2 text-2xl font-bold text-foreground">Available itineraries</h2>
+            </div>
             <Badge variant="accent">
               {results.length} option{results.length > 1 ? "s" : ""}
             </Badge>
-          ) : null}
-        </div>
+          </div>
 
-        {results.length ? (
-          results.map((journey, index) => (
+          {results.map((journey, index) => (
             <Card key={journey.journeyId}>
               <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
                 <div className="min-w-0 flex-1">
@@ -1499,17 +1085,9 @@ export function JourneyWorkspace() {
                 </div>
               </div>
             </Card>
-          ))
-        ) : (
-          <Card>
-            <StatePanel
-              eyebrow="No trip yet"
-              title="Your next route will appear here"
-              description="Plan a trip above to compare options, timings, and nearby errands that fit along the way."
-            />
-          </Card>
-        )}
-      </section>
+          ))}
+        </section>
+      ) : null}
     </div>
   );
 }

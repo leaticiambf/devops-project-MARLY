@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -43,10 +44,19 @@ async function hydrateUser(token: string, userId: string) {
   return usersApi.getById(userId, token);
 }
 
+function sessionMatches(
+  session: { token: string; userId: string } | null,
+  token: string,
+  userId: string,
+) {
+  return Boolean(session && session.token === token && session.userId === userId);
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>("restoring");
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const refreshSeqRef = useRef(0);
 
   const clearSession = useCallback(() => {
     clearStoredSession();
@@ -62,14 +72,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return null;
     }
 
+    const refreshSeq = ++refreshSeqRef.current;
+
     try {
       const hydratedUser = await hydrateUser(session.token, session.userId);
+      const latestSession = readStoredSession();
+      if (
+        refreshSeq !== refreshSeqRef.current ||
+        !sessionMatches(latestSession, session.token, session.userId)
+      ) {
+        return null;
+      }
       setUser(hydratedUser);
       setToken(session.token);
       setStatus("authenticated");
       return hydratedUser;
     } catch {
-      clearSession();
+      const latestSession = readStoredSession();
+      if (
+        refreshSeq === refreshSeqRef.current &&
+        sessionMatches(latestSession, session.token, session.userId)
+      ) {
+        clearSession();
+      }
       return null;
     }
   }, [clearSession]);
@@ -79,7 +104,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [refreshUser]);
 
   useEffect(() => {
-    setUnauthorizedHandler(() => clearSession());
+    setUnauthorizedHandler(({ path, token: failingToken }) => {
+      const session = readStoredSession();
+      if (!session || !failingToken || session.token !== failingToken) {
+        return;
+      }
+
+      // Only the canonical user hydration endpoint should be allowed to evict
+      // the local session. Other background 401/403s should surface as page
+      // errors instead of bouncing the user back to login.
+      if (path === `/api/users/${session.userId}`) {
+        clearSession();
+      }
+    });
     return () => setUnauthorizedHandler(null);
   }, [clearSession]);
 
@@ -92,6 +129,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isRestoring: status === "restoring",
       async login(payload) {
         const response = await authApi.login(payload);
+        refreshSeqRef.current += 1;
         writeStoredSession({
           token: response.token,
           userId: response.user.userId,
@@ -102,6 +140,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       },
       async register(payload) {
         const response = await authApi.register(payload);
+        refreshSeqRef.current += 1;
         writeStoredSession({
           token: response.token,
           userId: response.user.userId,

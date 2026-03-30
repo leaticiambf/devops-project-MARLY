@@ -14,9 +14,17 @@ export class ApiError extends Error {
   }
 }
 
-let unauthorizedHandler: (() => void) | null = null;
+type UnauthorizedContext = {
+  path: string;
+  status: number;
+  token: string | null;
+};
 
-export function setUnauthorizedHandler(handler: (() => void) | null) {
+let unauthorizedHandler: ((context: UnauthorizedContext) => void) | null = null;
+
+export function setUnauthorizedHandler(
+  handler: ((context: UnauthorizedContext) => void) | null,
+) {
   unauthorizedHandler = handler;
 }
 
@@ -95,7 +103,11 @@ export async function apiRequest<T>(
     );
 
     if (error.authError) {
-      unauthorizedHandler?.();
+      unauthorizedHandler?.({
+        path,
+        status: error.status,
+        token: resolvedToken ?? null,
+      });
     }
 
     throw error;
