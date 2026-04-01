@@ -31,8 +31,10 @@ public class JwtFilter extends OncePerRequestFilter {
 
         String username = null;
         String jwt = null;
+        boolean bearerAttempted = false;
 
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            bearerAttempted = true;
             jwt = authHeader.substring(7);
             try {
                 username = jwtUtils.extractUsername(jwt);
@@ -43,11 +45,13 @@ public class JwtFilter extends OncePerRequestFilter {
             }
         }
 
-        if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+        if (username != null) {
             try {
                 UserDetails userDetails = customUserDetailsService.loadUserByUsername(username);
 
                 if (jwt != null && jwtUtils.validateToken(jwt, userDetails)) {
+                    // Prefer an explicit Bearer token over any existing session-based
+                    // authentication, such as the OAuth popup session used to link Google.
                     UsernamePasswordAuthenticationToken authenticationToken = new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
                     authenticationToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authenticationToken);
@@ -55,6 +59,10 @@ public class JwtFilter extends OncePerRequestFilter {
             } catch (UsernameNotFoundException ex) {
                 // Stale token for a deleted/nonexistent user: continue request as anonymous.
             }
+        } else if (bearerAttempted) {
+            // When a Bearer token is explicitly sent but is invalid, do not fall back
+            // to any unrelated session authentication that may exist in the browser.
+            SecurityContextHolder.clearContext();
         }
 
         filterChain.doFilter(request,response);

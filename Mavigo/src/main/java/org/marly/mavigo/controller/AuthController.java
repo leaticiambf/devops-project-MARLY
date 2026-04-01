@@ -5,7 +5,6 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import java.util.Collections;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
@@ -30,10 +29,6 @@ public class AuthController {
 
     private final OAuth2AuthorizedClientService authorizedClientService;
     private final WebClient googleOAuthClient;
-
-
-    @Value("${app.frontend.base-url:http://localhost:5173}")
-    private String frontendBaseUrl;
 
     public AuthController(OAuth2AuthorizedClientService authorizedClientService) {
         this.authorizedClientService = authorizedClientService;

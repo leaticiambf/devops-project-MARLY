@@ -21,13 +21,17 @@ import org.marly.mavigo.client.prim.model.PrimPlace;
 import org.marly.mavigo.models.shared.GeoPoint;
 import org.marly.mavigo.models.user.User;
 import org.marly.mavigo.repository.UserTaskRepository;
+import org.marly.mavigo.security.RequestOwnershipGuard;
 import org.marly.mavigo.service.user.UserService;
 import org.marly.mavigo.service.user.dto.GoogleAccountLink;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClient;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientService;
@@ -67,18 +71,34 @@ public class GoogleTasksController {
     private final UserService userService;
     private final UserTaskRepository userTaskRepository;
     private final PrimApiClient primApiClient;
+    private final RequestOwnershipGuard requestOwnershipGuard;
 
+    @Value("${app.frontend.base-url:http://localhost:3000}")
+    private String frontendBaseUrl = "http://localhost:3000";
+
+    @Autowired
     public GoogleTasksController(
             WebClient googleApiWebClient,
             OAuth2AuthorizedClientService authorizedClientService,
             UserService userService,
             UserTaskRepository userTaskRepository,
             PrimApiClient primApiClient) {
+        this(googleApiWebClient, authorizedClientService, userService, userTaskRepository, primApiClient, null);
+    }
+
+    public GoogleTasksController(
+            WebClient googleApiWebClient,
+            OAuth2AuthorizedClientService authorizedClientService,
+            UserService userService,
+            UserTaskRepository userTaskRepository,
+            PrimApiClient primApiClient,
+            RequestOwnershipGuard requestOwnershipGuard) {
         this.googleApiWebClient = googleApiWebClient;
         this.authorizedClientService = authorizedClientService;
         this.userService = userService;
         this.userTaskRepository = userTaskRepository;
         this.primApiClient = primApiClient;
+        this.requestOwnershipGuard = requestOwnershipGuard;
     }
 
     // -----------------------------
@@ -130,13 +150,20 @@ public class GoogleTasksController {
     public List<TaskListDto> listsForUser(
             @PathVariable UUID userId,
             @RequestParam(required = false) Integer pageSize,
-            @RequestParam(required = false) String pageToken) {
+            @RequestParam(required = false) String pageToken,
+            Authentication authentication) {
+        requireUserAccess(userId, authentication);
         OAuth2AuthorizedClient client = requireAuthorizedClientForUser(userId);
         return fetchLists(client, pageSize, pageToken);
     }
 
+    public List<TaskListDto> listsForUser(UUID userId, Integer pageSize, String pageToken) {
+        return listsForUser(userId, pageSize, pageToken, null);
+    }
+
     @GetMapping("/users/{userId}/default-list")
-    public Map<String, Object> defaultListForUser(@PathVariable UUID userId) {
+    public Map<String, Object> defaultListForUser(@PathVariable UUID userId, Authentication authentication) {
+        requireUserAccess(userId, authentication);
         OAuth2AuthorizedClient client = requireAuthorizedClientForUser(userId);
         List<TaskListDto> lists = fetchLists(client, 50, null);
 
@@ -148,6 +175,10 @@ public class GoogleTasksController {
         return Map.of("id", chosen.id(), "title", chosen.title());
     }
 
+    public Map<String, Object> defaultListForUser(UUID userId) {
+        return defaultListForUser(userId, null);
+    }
+
     /**
      * Récupère les tâches depuis Google Tasks uniquement (aucun stockage local).
      * Les balises #mavigo: dans titre/notes sont extraites pour affichage (locationQuery) sans persistance.
@@ -157,12 +188,18 @@ public class GoogleTasksController {
             @PathVariable UUID userId,
             @PathVariable String listId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
-            @RequestParam(defaultValue = "false") boolean includeCompleted) {
+            @RequestParam(defaultValue = "false") boolean includeCompleted,
+            Authentication authentication) {
+        requireUserAccess(userId, authentication);
         OAuth2AuthorizedClient client = requireAuthorizedClientForUser(userId);
         List<TaskDto> googleTasks = fetchTasks(client, listId, date, includeCompleted);
         return googleTasks.stream()
                 .map(this::taskDtoToResponseMap)
                 .toList();
+    }
+
+    public List<Map<String, Object>> tasksForUser(UUID userId, String listId, LocalDate date, boolean includeCompleted) {
+        return tasksForUser(userId, listId, date, includeCompleted, null);
     }
 
     /**
@@ -171,7 +208,9 @@ public class GoogleTasksController {
     @GetMapping("/users/{userId}/suggestions")
     public List<Map<String, Object>> suggestionsForUser(
             @PathVariable UUID userId,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            Authentication authentication) {
+        requireUserAccess(userId, authentication);
         OAuth2AuthorizedClient client = requireAuthorizedClientForUser(userId);
 
         List<TaskListDto> lists = fetchLists(client, 50, null);
@@ -194,6 +233,10 @@ public class GoogleTasksController {
                     return locationQuery != null && StringUtils.hasText(String.valueOf(locationQuery));
                 })
                 .toList();
+    }
+
+    public List<Map<String, Object>> suggestionsForUser(UUID userId, LocalDate date) {
+        return suggestionsForUser(userId, date, null);
     }
 
     /**
@@ -244,7 +287,8 @@ public class GoogleTasksController {
     }
 
     @GetMapping("/users/{userId}/local")
-    public List<Map<String, Object>> localTasks(@PathVariable UUID userId) {
+    public List<Map<String, Object>> localTasks(@PathVariable UUID userId, Authentication authentication) {
+        requireUserAccess(userId, authentication);
         return userTaskRepository.findByUser_Id(userId)
                 .stream()
                 .map(t -> {
@@ -270,13 +314,19 @@ public class GoogleTasksController {
                 .toList();
     }
 
+    public List<Map<String, Object>> localTasks(UUID userId) {
+        return localTasks(userId, null);
+    }
+
     /**
      * Tâches depuis Google uniquement, avec #mavigo: et géocodage, sans stockage en base.
      * Utilisé pour l’optimisation de trajet (les tâches sont envoyées dans taskDetails).
      */
     @GetMapping("/users/{userId}/for-journey")
     public List<Map<String, Object>> tasksForJourney(@PathVariable UUID userId,
-            @RequestParam(defaultValue = "false") boolean includeCompleted) {
+            @RequestParam(defaultValue = "false") boolean includeCompleted,
+            Authentication authentication) {
+        requireUserAccess(userId, authentication);
         OAuth2AuthorizedClient client = requireAuthorizedClientForUser(userId);
         List<TaskListDto> lists = fetchLists(client, 50, null);
         if (lists == null || lists.isEmpty()) {
@@ -310,6 +360,10 @@ public class GoogleTasksController {
         return out;
     }
 
+    public List<Map<String, Object>> tasksForJourney(UUID userId, boolean includeCompleted) {
+        return tasksForJourney(userId, includeCompleted, null);
+    }
+
     @GetMapping(value = "/link", produces = MediaType.TEXT_HTML_VALUE)
     public ResponseEntity<String> linkGoogleAccount(
             @RequestParam UUID userId,
@@ -328,11 +382,23 @@ public class GoogleTasksController {
 
         try {
             User linkedUser = userService.linkGoogleAccount(userId, new GoogleAccountLink(subject, email));
-            String html = buildLinkSuccessHtml(linkedUser.getDisplayName(), linkedUser.getGoogleAccountEmail());
-            return ResponseEntity.ok().contentType(MediaType.TEXT_HTML).body(html);
+            String redirectUrl = buildFrontendLinkResultUrl(
+                    "/google-link-complete",
+                    linkedUser.getDisplayName(),
+                    linkedUser.getGoogleAccountEmail(),
+                    null);
+            return ResponseEntity.status(HttpStatus.FOUND)
+                    .header("Location", redirectUrl)
+                    .build();
         } catch (Exception e) {
-            String html = buildLinkErrorHtml(e.getMessage());
-            return ResponseEntity.status(HttpStatus.CONFLICT).contentType(MediaType.TEXT_HTML).body(html);
+            String redirectUrl = buildFrontendLinkResultUrl(
+                    "/google-link-error",
+                    null,
+                    null,
+                    e.getMessage());
+            return ResponseEntity.status(HttpStatus.FOUND)
+                    .header("Location", redirectUrl)
+                    .build();
         }
     }
 
@@ -343,7 +409,10 @@ public class GoogleTasksController {
     public Map<String, Object> completeTaskForUser(
             @PathVariable UUID userId,
             @PathVariable String listId,
-            @PathVariable String taskId) {
+            @PathVariable String taskId,
+            Authentication authentication) {
+
+        requireUserAccess(userId, authentication);
 
         OAuth2AuthorizedClient client = requireAuthorizedClientForUser(userId);
 
@@ -372,6 +441,10 @@ public class GoogleTasksController {
         }
     }
 
+    public Map<String, Object> completeTaskForUser(UUID userId, String listId, String taskId) {
+        return completeTaskForUser(userId, listId, taskId, null);
+    }
+
     /**
      * ✅ New: delete task
      */
@@ -379,7 +452,10 @@ public class GoogleTasksController {
     public ResponseEntity<Void> deleteTaskForUser(
             @PathVariable UUID userId,
             @PathVariable String listId,
-            @PathVariable String taskId) {
+            @PathVariable String taskId,
+            Authentication authentication) {
+
+        requireUserAccess(userId, authentication);
 
         OAuth2AuthorizedClient client = requireAuthorizedClientForUser(userId);
 
@@ -398,6 +474,16 @@ public class GoogleTasksController {
                     HttpStatus.valueOf(e.getStatusCode().value()),
                     "Google Tasks API error: " + e.getResponseBodyAsString(),
                     e);
+        }
+    }
+
+    public ResponseEntity<Void> deleteTaskForUser(UUID userId, String listId, String taskId) {
+        return deleteTaskForUser(userId, listId, taskId, null);
+    }
+
+    private void requireUserAccess(UUID userId, Authentication authentication) {
+        if (requestOwnershipGuard != null) {
+            requestOwnershipGuard.requireUserAccess(userId, authentication);
         }
     }
 
@@ -539,73 +625,36 @@ public class GoogleTasksController {
         }
     }
 
-    private String buildLinkSuccessHtml(String displayName, String email) {
-        String escapedEmail = HtmlUtils.htmlEscape(email == null ? "unknown" : email);
-        String escapedName = HtmlUtils.htmlEscape(displayName == null ? "Unknown user" : displayName);
-        String jsEmail = escapeForJs(email == null ? "" : email);
+    private String buildFrontendLinkResultUrl(
+            String path,
+            String displayName,
+            String email,
+            String errorMessage) {
+        StringBuilder url = new StringBuilder(frontendBaseUrl);
+        if (!frontendBaseUrl.endsWith("/")) {
+            url.append("/");
+        }
+        url.append(path.startsWith("/") ? path.substring(1) : path);
 
-        return """
-                <!DOCTYPE html>
-                <html lang="en">
-                <head>
-                    <meta charset="UTF-8" />
-                    <title>Google Tasks Linked</title>
-                    <style>
-                        body { font-family: Arial, sans-serif; padding: 20px; background: #f7f7f7; }
-                        .card { background: #fff; border-radius: 8px; padding: 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
-                        button { padding: 8px 16px; font-size: 1rem; cursor: pointer; }
-                    </style>
-                </head>
-                <body>
-                    <div class="card">
-                        <h2>Google Tasks linked</h2>
-                        <p>User <strong>%s</strong> is now connected to <strong>%s</strong>.</p>
-                        <p>You can close this window.</p>
-                        <button onclick="window.close()">Close</button>
-                    </div>
-                    <script>
-                        if (window.opener) {
-                            window.opener.postMessage({ type: 'GOOGLE_TASKS_LINKED', email: '%s' }, window.location.origin);
-                        }
-                    </script>
-                </body>
-                </html>
-                """
-                .formatted(escapedName, escapedEmail, jsEmail);
+        List<String> params = new ArrayList<>();
+        if (StringUtils.hasText(displayName)) {
+            params.add("name=" + encodeQueryParam(displayName));
+        }
+        if (StringUtils.hasText(email)) {
+            params.add("email=" + encodeQueryParam(email));
+        }
+        if (StringUtils.hasText(errorMessage)) {
+            params.add("error=" + encodeQueryParam(errorMessage));
+        }
+
+        if (!params.isEmpty()) {
+            url.append("?").append(String.join("&", params));
+        }
+
+        return url.toString();
     }
 
-    private String escapeForJs(String value) {
-        if (value == null)
-            return "";
-        return value.replace("\\", "\\\\").replace("'", "\\'");
-    }
-
-    private String buildLinkErrorHtml(String errorMessage) {
-        String escapedError = HtmlUtils.htmlEscape(errorMessage == null ? "Unknown error" : errorMessage);
-
-        return """
-                <!DOCTYPE html>
-                <html lang="en">
-                <head>
-                    <meta charset="UTF-8" />
-                    <title>Google Tasks Link Failed</title>
-                    <style>
-                        body { font-family: Arial, sans-serif; padding: 20px; background: #f7f7f7; }
-                        .card { background: #fff; border-radius: 8px; padding: 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
-                        .error { color: #c0392b; }
-                        button { padding: 8px 16px; font-size: 1rem; cursor: pointer; }
-                    </style>
-                </head>
-                <body>
-                    <div class="card">
-                        <h2 class="error">Link Failed</h2>
-                        <p>%s</p>
-                        <p>This Google account may already be linked to another user.</p>
-                        <button onclick="window.close()">Close</button>
-                    </div>
-                </body>
-                </html>
-                """
-                .formatted(escapedError);
+    private String encodeQueryParam(String value) {
+        return java.net.URLEncoder.encode(value, java.nio.charset.StandardCharsets.UTF_8);
     }
 }
