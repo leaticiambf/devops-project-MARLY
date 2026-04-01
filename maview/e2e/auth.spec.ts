@@ -15,5 +15,5 @@ test("restores an existing session after reload", async ({ page }) => {
   await page.reload();
 
   await expect(page.getByRole("banner").getByText("Jane Doe")).toBeVisible();
-  await expect(page.getByRole("heading", { name: /plan, start, and adapt/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /plan the next trip/i })).toBeVisible();
 });

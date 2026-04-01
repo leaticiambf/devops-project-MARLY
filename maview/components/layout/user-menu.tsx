@@ -37,10 +37,6 @@ export function UserMenu({ user, onLogout }: UserMenuProps) {
   const [showComfortForm, setShowComfortForm] = useState(false);
 
   useEffect(() => {
-    setHomeAddressDraft(user.homeAddress ?? "");
-  }, [user.homeAddress]);
-
-  useEffect(() => {
     function handlePointerDown(event: MouseEvent) {
       if (!menuRef.current?.contains(event.target as Node)) {
         setIsOpen(false);

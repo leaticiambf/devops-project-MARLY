@@ -84,12 +84,16 @@ class JwtFilterTest {
     }
 
     @Test
-    void doFilterInternal_doesNotOverrideExistingAuthentication() throws ServletException, IOException {
+    void doFilterInternal_overridesExistingAuthenticationWithValidBearer() throws ServletException, IOException {
         CustomUserDetailsService uds = mock(CustomUserDetailsService.class);
         JwtUtils jwtUtils = mock(JwtUtils.class);
         JwtFilter filter = new JwtFilter(uds, jwtUtils);
 
+        UserDetails newUserDetails = new User("new-user", "pwd", List.of());
         when(jwtUtils.extractUsername("jwt-token")).thenReturn("new-user");
+        when(uds.loadUserByUsername("new-user")).thenReturn(newUserDetails);
+        when(jwtUtils.validateToken("jwt-token", newUserDetails)).thenReturn(true);
+
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken("existing-user", null));
 
@@ -98,8 +102,7 @@ class JwtFilterTest {
 
         filter.doFilterInternal(request, new MockHttpServletResponse(), new MockFilterChain());
 
-        assertEquals("existing-user", SecurityContextHolder.getContext().getAuthentication().getPrincipal());
-        verify(uds, never()).loadUserByUsername("new-user");
+        assertEquals(newUserDetails, SecurityContextHolder.getContext().getAuthentication().getPrincipal());
     }
 
     @Test
