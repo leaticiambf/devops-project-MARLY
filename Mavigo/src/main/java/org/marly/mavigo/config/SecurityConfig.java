@@ -82,7 +82,8 @@ public class SecurityConfig {
                         .permitAll()
                         .requestMatchers("/api/auth/login").permitAll()
                         .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
-                        .requestMatchers("/api/users/**", "/api/journeys/**", "/api/eco/**", "/api/google/**")
+                        .requestMatchers("/api/users/**", "/api/journeys/**", "/api/eco/**", "/api/google/**",
+                                "/api/tourism/**")
                         .authenticated()
                         .anyRequest().authenticated())
                 .oauth2Login(oauth -> oauth
