@@ -26,3 +26,8 @@ export function getAppUrl() {
 export function getBackendOrigin() {
   return resolveEnv("BACKEND_ORIGIN", LOCAL_BACKEND_URL);
 }
+
+export function getMapboxToken() {
+  const value = process.env.VITE_MAPBOX_TOKEN?.trim();
+  return value || null;
+}

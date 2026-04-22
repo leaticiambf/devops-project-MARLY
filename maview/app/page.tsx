@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { AuthGate } from "@/components/auth/auth-gate";
 import { JourneyWorkspace } from "@/features/journey/journey-workspace";
+import { getMapboxToken } from "@/lib/config/env";
 
 export const metadata: Metadata = {
   title: "Journey Planner",
@@ -9,9 +10,11 @@ export const metadata: Metadata = {
 };
 
 export default function HomePage() {
+  const mapboxToken = getMapboxToken();
+
   return (
     <AuthGate>
-      <JourneyWorkspace />
+      <JourneyWorkspace mapboxToken={mapboxToken} />
     </AuthGate>
   );
 }

@@ -248,6 +248,8 @@ public record JourneyResponse(
                         String title,
                         String locationQuery,
                         Long additionalDurationSeconds,
-                        String googleTaskId) {
+                        String googleTaskId,
+                        Double locationLat,
+                        Double locationLng) {
         }
 }

@@ -125,7 +125,9 @@ class ControllerDtoCoverageTest {
         journey.setIntermediateDepartureTime(OffsetDateTime.now().plusMinutes(20));
 
         JourneyResponse response = JourneyResponse.fromOptimized(journey, List.of(),
-                List.of(new JourneyResponse.IncludedTaskResponse(UUID.randomUUID(), "Task", "B", 300L, "t1")), 3600L);
+                List.of(new JourneyResponse.IncludedTaskResponse(
+                        UUID.randomUUID(), "Task", "B", 300L, "t1", null, null)),
+                3600L);
 
         assertThat(response.intermediateQuery()).isEqualTo("B");
         assertThat(response.intermediateDepartureTime()).isNotNull();
@@ -150,7 +152,7 @@ class ControllerDtoCoverageTest {
         journey.setDestinationLabel("D");
 
         JourneyResponse.IncludedTaskResponse task = new JourneyResponse.IncludedTaskResponse(
-                UUID.randomUUID(), "Buy milk", "nearby store", 300L, "gt-1");
+                UUID.randomUUID(), "Buy milk", "nearby store", 300L, "gt-1", 48.86, 2.35);
 
         JourneyResponse response = JourneyResponse.fromOptimized(
                 journey, Collections.emptyList(), List.of(task), 1800L);
