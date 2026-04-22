@@ -232,3 +232,28 @@ export type EcoDashboard = {
     timestamp: string;
   }>;
 };
+
+export type NearbyRestaurantParams = {
+  latitude: number;
+  longitude: number;
+  radiusMeters?: number;
+  limit?: number;
+};
+
+export type TourismSuggestion = {
+  id: string;
+  name: string;
+  category: string;
+  address: string | null;
+  description: string | null;
+  rating: number | null;
+  reviewCount: number | null;
+  priceLevel: string | null;
+  imageUrl: string | null;
+  websiteUrl: string | null;
+  phone: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  source: string;
+  tags: string[];
+};

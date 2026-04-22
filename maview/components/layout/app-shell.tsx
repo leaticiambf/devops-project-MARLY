@@ -11,6 +11,7 @@ import { useAuth } from "@/providers/auth-provider";
 
 const navItems = [
   { href: "/", label: "Journey" },
+  { href: "/explore", label: "Explore" },
   { href: "/tasks", label: "Tasks" },
   { href: "/eco-score", label: "Eco Score" },
 ];
