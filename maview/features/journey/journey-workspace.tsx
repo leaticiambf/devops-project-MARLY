@@ -209,7 +209,6 @@ function resolveJourneyTasks(
       coordSource: r.coordSource,
       isIncludedInPlan: r.isIncludedInPlan,
     }));
-    // eslint-disable-next-line no-console -- diagnostic volontaire en dev
     console.debug("[journey] resolved tasks", {
       journeyId: journey.journeyId,
       includedTasksCount: journey.includedTasks.length,
@@ -1505,7 +1504,7 @@ export function JourneyWorkspace({ mapboxToken }: JourneyWorkspaceProps) {
     })();
 
     return () => controller.abort();
-  }, [includedTasksGeoKey, mapboxToken]);
+  }, [currentJourney, includedTasksGeoKey, mapboxToken]);
 
   const resolvedJourneyTasks = useMemo(
     () =>
@@ -1690,7 +1689,7 @@ export function JourneyWorkspace({ mapboxToken }: JourneyWorkspaceProps) {
     })();
 
     return () => controller.abort();
-  }, [journeyTaskGeoKey, mapboxToken]);
+  }, [currentJourney, journeyTaskGeoKey, mapboxToken]);
 
   const liveJourneyTaskMarkers = useMemo((): JourneyTaskMarker[] => {
     if (!currentJourney) {

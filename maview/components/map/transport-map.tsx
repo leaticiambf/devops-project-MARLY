@@ -204,6 +204,9 @@ export function TransportMap({
   const lastMileAbortRef = useRef<AbortController | null>(null);
   const approachAbortRef = useRef<AbortController | null>(null);
   const [mapReady, setMapReady] = useState(false);
+  const [mapUnavailableMessage, setMapUnavailableMessage] = useState<string | null>(
+    null,
+  );
 
   const [, setLocationStatus] = useState<LocationStatus>("idle");
   const [locationError, setLocationError] = useState<string | null>(null);
@@ -218,9 +221,14 @@ export function TransportMap({
     shouldSuggestReroute: false,
     message: "Localisation automatique en cours...",
   });
-  const [arrivalAddressCoordinates, setArrivalAddressCoordinates] = useState<
+  const arrivalAddressQueryValue = arrivalAddressQuery?.trim() ?? "";
+  const canResolveArrivalAddress = Boolean(arrivalAddressQueryValue && mapboxToken);
+  const [resolvedArrivalAddressCoordinates, setResolvedArrivalAddressCoordinates] = useState<
     [number, number] | null
   >(null);
+  const arrivalAddressCoordinates = canResolveArrivalAddress
+    ? resolvedArrivalAddressCoordinates
+    : null;
 
   const stops = useMemo(() => providedStops ?? DEMO_STOPS, [providedStops]);
   const segments = useMemo(
@@ -236,19 +244,17 @@ export function TransportMap({
   }, [arrivalAddressCoordinates, segments, stops]);
 
   useEffect(() => {
-    const query = arrivalAddressQuery?.trim();
-    if (!query || !mapboxToken) {
-      setArrivalAddressCoordinates(null);
+    if (!canResolveArrivalAddress || !mapboxToken) {
       return;
     }
 
     const controller = new AbortController();
     void (async () => {
       try {
-        const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?limit=1&language=fr&types=address,poi,place,locality,neighborhood&access_token=${encodeURIComponent(mapboxToken)}`;
+        const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(arrivalAddressQueryValue)}.json?limit=1&language=fr&types=address,poi,place,locality,neighborhood&access_token=${encodeURIComponent(mapboxToken)}`;
         const response = await fetch(url, { signal: controller.signal });
         if (!response.ok) {
-          setArrivalAddressCoordinates(null);
+          setResolvedArrivalAddressCoordinates(null);
           return;
         }
         const data = (await response.json()) as {
@@ -256,19 +262,19 @@ export function TransportMap({
         };
         const center = data.features?.[0]?.center;
         if (center?.length === 2) {
-          setArrivalAddressCoordinates([center[0], center[1]]);
+          setResolvedArrivalAddressCoordinates([center[0], center[1]]);
         } else {
-          setArrivalAddressCoordinates(null);
+          setResolvedArrivalAddressCoordinates(null);
         }
       } catch {
         if (!controller.signal.aborted) {
-          setArrivalAddressCoordinates(null);
+          setResolvedArrivalAddressCoordinates(null);
         }
       }
     })();
 
     return () => controller.abort();
-  }, [arrivalAddressQuery, mapboxToken]);
+  }, [arrivalAddressQueryValue, canResolveArrivalAddress, mapboxToken]);
 
   const updateUserHeading = useCallback((headingDegrees: number) => {
     const normalizedHeading = ((headingDegrees % 360) + 360) % 360;
@@ -1144,13 +1150,23 @@ export function TransportMap({
 
     mapboxgl.accessToken = mapboxToken;
 
-    const map = new mapboxgl.Map({
-      container: containerRef.current,
-      style: "mapbox://styles/mapbox/dark-v11",
-      center: DEFAULT_CENTER,
-      zoom: 11.3,
-      attributionControl: true,
-    });
+    let map: mapboxgl.Map;
+    try {
+      map = new mapboxgl.Map({
+        container: containerRef.current,
+        style: "mapbox://styles/mapbox/dark-v11",
+        center: DEFAULT_CENTER,
+        zoom: 11.3,
+        attributionControl: true,
+      });
+    } catch {
+      window.setTimeout(() => {
+        setMapUnavailableMessage(
+          "La carte interactive n'est pas disponible dans cet environnement.",
+        );
+      }, 0);
+      return;
+    }
 
     map.addControl(new mapboxgl.NavigationControl(), "top-right");
     mapRef.current = map;
@@ -1212,7 +1228,7 @@ export function TransportMap({
       duration: 1000,
       essential: true,
     });
-  }, [mapReady, flyToRequest?.id, flyToRequest?.lat, flyToRequest?.lng]);
+  }, [flyToRequest, mapReady]);
 
   useEffect(() => {
     if (!isMapReadyRef.current) {
@@ -1314,16 +1330,24 @@ export function TransportMap({
 
       <div className="relative overflow-hidden rounded-2xl border border-line bg-surface-strong">
         <div ref={containerRef} className="h-120 w-full" />
-        <button
-          type="button"
-          aria-label="Recentrer sur ma position"
-          onClick={() => {
-            void centerOnUser();
-          }}
-          className="absolute bottom-4 right-4 z-20 inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-background/90 text-foreground shadow-[0_10px_24px_rgba(2,6,23,0.35)] backdrop-blur transition hover:scale-[1.03] hover:bg-background"
-        >
-          <span className="text-lg leading-none">⌖</span>
-        </button>
+        {mapUnavailableMessage ? (
+          <div className="absolute inset-0 grid place-items-center bg-surface-strong px-6 text-center">
+            <p className="max-w-sm text-sm font-medium text-secondary">
+              {mapUnavailableMessage}
+            </p>
+          </div>
+        ) : (
+          <button
+            type="button"
+            aria-label="Recentrer sur ma position"
+            onClick={() => {
+              void centerOnUser();
+            }}
+            className="absolute bottom-4 right-4 z-20 inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-background/90 text-foreground shadow-[0_10px_24px_rgba(2,6,23,0.35)] backdrop-blur transition hover:scale-[1.03] hover:bg-background"
+          >
+            <span className="text-lg leading-none">⌖</span>
+          </button>
+        )}
       </div>
     </div>
   );
