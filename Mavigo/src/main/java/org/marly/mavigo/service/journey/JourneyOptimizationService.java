@@ -54,7 +54,8 @@ public class JourneyOptimizationService {
     }
 
     /** Info tâche incluse dans le résultat (pour IncludedTaskResponse). */
-    public record IncludedTaskInfo(String id, String title, String locationQuery) {
+    public record IncludedTaskInfo(String id, String title, String locationQuery,
+            Double locationLat, Double locationLng) {
     }
 
     /**
@@ -175,7 +176,10 @@ public class JourneyOptimizationService {
             return List.of();
 
         List<OptimizedJourneyResult> results = new ArrayList<>();
-        IncludedTaskInfo info = new IncludedTaskInfo(task.id(), task.title(), task.locationQuery());
+        IncludedTaskInfo info = new IncludedTaskInfo(
+                task.id(), task.title(), task.locationQuery(),
+                task.locationHint() != null ? task.locationHint().getLatitude() : null,
+                task.locationHint() != null ? task.locationHint().getLongitude() : null);
         int maxSeg1 = Math.min(MAX_PATHS_PER_TASK, segment1Journeys.size());
 
         for (int i = 0; i < maxSeg1; i++) {
@@ -237,7 +241,10 @@ public class JourneyOptimizationService {
         long baseDuration = baseJourneys.isEmpty() ? totalDuration : getDurationSeconds(baseJourneys.get(0));
 
         return new OptimizedJourneyResult(totalJourney,
-                List.of(new IncludedTaskInfo(task.id(), task.title(), task.locationQuery())),
+                List.of(new IncludedTaskInfo(
+                        task.id(), task.title(), task.locationQuery(),
+                        task.locationHint() != null ? task.locationHint().getLatitude() : null,
+                        task.locationHint() != null ? task.locationHint().getLongitude() : null)),
                 totalDuration, baseDuration);
     }
 

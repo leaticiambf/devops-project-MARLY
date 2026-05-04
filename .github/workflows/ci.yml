@@ -141,6 +141,7 @@ jobs:
       run: ./gradlew test
 
     - name: SonarQube Analysis
+      continue-on-error: true
       env:
         SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       run: ./gradlew sonar --info

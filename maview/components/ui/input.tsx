@@ -15,6 +15,7 @@ export function Input({ label, error, hint, className, ...props }: InputProps) {
         {label}
       </span>
       <input
+        aria-label={props["aria-label"] ?? label}
         {...props}
         className={cn(
           "w-full rounded-2xl border border-line bg-[rgba(255,255,255,0.03)] px-4 py-3.5 text-sm text-foreground font-mono outline-none transition placeholder:text-secondary/80 focus:border-brand focus:bg-surface-strong focus:ring-2 focus:ring-brand-soft",

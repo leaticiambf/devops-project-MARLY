@@ -158,7 +158,9 @@ public class JourneyController {
                                             t.locationQuery(),
                                             result.includedTasks().size() > 1 ? baseAdd / result.includedTasks().size()
                                                     : baseAdd,
-                                            t.id()))
+                                            t.id(),
+                                            t.locationLat(),
+                                            t.locationLng()))
                                     .toList();
                             return JourneyResponse.fromOptimized(
                                     result.journey(), tasksOnRoute, includedTasks, result.baseDurationSeconds());

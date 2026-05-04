@@ -141,6 +141,9 @@ export type IncludedTask = {
   locationQuery: string | null;
   additionalDurationSeconds: number | null;
   googleTaskId: string | null;
+  /** Coordonnées GPS exactes du waypoint tâche (fournies par le backend, `UserTask.locationHint`). */
+  locationLat: number | null;
+  locationLng: number | null;
 };
 
 export type JourneyResponse = {
