@@ -37,3 +37,7 @@ out/
 .vscode/
 
 .DS_Store/
+
+### Frontend test artifacts ###
+maview/test-results/
+maview/playwright-report/

@@ -21,6 +21,7 @@ import org.marly.mavigo.config.SecurityConfig;
 import org.marly.mavigo.filter.JwtFilter;
 import org.marly.mavigo.security.JwtAuthenticationFilter;
 import org.marly.mavigo.security.JwtTokenService;
+import org.marly.mavigo.security.RequestOwnershipGuard;
 import org.marly.mavigo.models.journey.Journey;
 import org.marly.mavigo.models.journey.JourneyStatus;
 import org.marly.mavigo.models.user.User;
@@ -99,6 +100,9 @@ class JourneyControllerTest {
 
     @MockitoBean
     private JwtFilter jwtFilter;
+
+    @MockitoBean
+    private RequestOwnershipGuard requestOwnershipGuard;
 
     @BeforeEach
     void setupFilter() throws ServletException, IOException {
@@ -271,8 +275,8 @@ class JourneyControllerTest {
     }
 
     @Test
-    @DisplayName("POST /api/journeys sans authentification ni CSRF devrais être ACCEPTE (car permitAll et csrf disabled)")
-    void planJourney_withoutAuthAndCsrf_shouldBeAccepted() throws Exception {
+    @DisplayName("POST /api/journeys sans authentification ni CSRF devrait être rejeté")
+    void planJourney_withoutAuthAndCsrf_shouldBeRejected() throws Exception {
         UUID userId = UUID.randomUUID();
         User user = new User("ext-123", "test@example.com", "Test User");
         user.setId(userId);
@@ -294,7 +298,13 @@ class JourneyControllerTest {
         mockMvc.perform(post("/api/journeys")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(requestBody))
-                .andExpect(status().is2xxSuccessful());
+                .andExpect(result -> {
+                    int status = result.getResponse().getStatus();
+                    boolean rejected = (status >= 300 && status < 500);
+                    if (!rejected) {
+                        throw new AssertionError("Expected a rejected request but was: " + status);
+                    }
+                });
     }
 
     @Test

@@ -1,101 +1,106 @@
-# Mavigo - Paris Public Transport Assistant
+# Mavigo
 
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![CI](https://github.com/Aminmiri82/devops-project-MARLY/actions/workflows/ci.yml/badge.svg)](https://github.com/Aminmiri82/devops-project-MARLY/actions/workflows/ci.yml)
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=Aminmiri82_devops-project-MARLY&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=Aminmiri82_devops-project-MARLY)
-[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=Aminmiri82_devops-project-MARLY&metric=coverage)](https://sonarcloud.io/summary/new_code?id=Aminmiri82_devops-project-MARLY)
+Mavigo is a split web application for planning Paris public transport journeys, managing Google Tasks along the route, and tracking eco-score progress.
 
-## About
+## Repository Layout
 
-Mavigo is a personal public transport assistant for the city of Paris. It helps users navigate the Parisian transport network with intelligent journey planning and quality-of-life features including:
+- `Mavigo/`: Spring Boot backend, API, OAuth, and persistence
+- `maview/`: Next.js frontend, App Router UI, frontend-side rewrites, and frontend tests
+- `docs/`: technical documentation and project diagrams
 
-- Journey planning with real-time data from PRIM (Ile-de-France Mobilites API)
-- Real-time disruption alerts
-- Google Tasks integration for trip management
+## Runtime Topology
 
-## Team
+- Browser traffic should target the frontend origin only
+- `maview` rewrites `/api/*`, `/oauth2/*`, `/login/oauth2/*`, and `/logout` to the backend
+- The backend stays deployable independently on Railway or a similar host
+- The frontend and backend are expected to run on separate origins in hosted environments
 
-| Name |
-|------|
-| Marie BIBI |
-| Raphael MEIMOUN |
-| Seyed Amineddin MIRI |
-| Malado SOW |
+Default local ports:
 
-## Technologies
+- Frontend: `http://localhost:3000`
+- Backend: `http://localhost:8080`
 
-### Backend
-- **Framework**: Spring Boot 3.5.7
-- **Language**: Java 21
-- **Database**: H2 (development) / PostgreSQL compatible
-- **Build Tool**: Gradle 9.1
-- **Authentication**: OAuth2 with Google
+## Auth Model
 
-### Frontend
-- **Stack**: Vanilla JavaScript, HTML5, CSS3 (no framework)
-- **Served by**: Spring Boot static resources
+- Main app authentication uses a JWT stored in browser `localStorage`
+- Google OAuth and Google Tasks access use the Spring session
+- Logging out from the frontend clears the local JWT and calls the backend logout endpoint
 
-### External APIs
-- PRIM (Ile-de-France Mobilites) for journey planning
-- Google Tasks API for task management
+## Environment Variables
 
-## Getting Started
+Frontend (`maview/.env` or `maview/.env.local`):
 
-### Prerequisites
+- `BACKEND_ORIGIN`: backend base URL used by Next rewrites
+- `NEXT_PUBLIC_APP_URL`: public frontend URL used for metadata and frontend-origin assumptions
 
-- Java 21 or higher
-- Gradle 9.1+ (or use the included wrapper)
+Backend (`Mavigo/local.env`, see `Mavigo/local.env.example`):
 
-### Configuration
+- `APP_FRONTEND_BASE_URL`
+- `APP_FRONTEND_ALLOWED_ORIGINS`
+- `APP_OAUTH_REDIRECT_BASE_URL`
+- `DB_URL`
+- `DB_USERNAME`
+- `DB_PASSWORD`
+- `JWT_SECRET`
+- `JWT_EXPIRATION`
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+- `PRIM_API_KEY`
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/Aminmiri82/devops-project-MARLY.git
-   cd devops-project-MARLY
-   ```
+Google OAuth setup note:
 
-2. Configure environment variables in `Mavigo/local.env`:
-   ```
-   PRIM_API_KEY=your_prim_api_key
-   PRIM_API_ENDPOINT=https://prim.iledefrance-mobilites.fr/marketplace/v2/navitia
-   GOOGLE_CLIENT_ID=your_google_client_id
-   GOOGLE_CLIENT_SECRET=your_google_client_secret
-   JWT_SECRET=your_jwt_secret
-   ```
+- Register `${APP_OAUTH_REDIRECT_BASE_URL}/login/oauth2/code/google` as an authorized redirect URI in Google Cloud
+- Local development is configured for `http://localhost:3000/login/oauth2/code/google`
+- Hosted environments should point `APP_OAUTH_REDIRECT_BASE_URL` at the deployed frontend origin
 
-### Running the Application
+Optional backend development helpers:
 
-Navigate to the Mavigo directory and run:
+- `APP_H2_CONSOLE_ENABLED=true`
+- `LOG_LEVEL_SPRING_SECURITY=DEBUG`
+- `LOG_LEVEL_WEBCLIENT=DEBUG`
+- `LOG_LEVEL_REACTOR_NETTY=DEBUG`
+
+## Run Locally
+
+1. Create `Mavigo/local.env` from `Mavigo/local.env.example`.
+2. Create `maview/.env.local` from `maview/.env.example`.
+3. Start the backend:
 
 ```bash
 cd Mavigo
 ./gradlew bootRun
 ```
 
-The application will start on **http://localhost:8080**
-
-### Building
-
-To build a JAR file:
+4. In another terminal, start the frontend:
 
 ```bash
-cd Mavigo
-./gradlew build
+cd maview
+pnpm install
+pnpm dev
 ```
 
-The JAR will be created in `Mavigo/build/libs/`
+## Verification Commands
 
-### Running Tests
+Frontend:
+
+```bash
+cd maview
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+```
+
+Backend:
 
 ```bash
 cd Mavigo
 ./gradlew test
 ```
 
-## Documentation
+## Deployment Notes
 
-Full documentation is available in the [docs/](docs/) folder and as a PDF in the [releases](https://github.com/Aminmiri82/devops-project-MARLY/releases).
-
-## License
-
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+- Set `NEXT_PUBLIC_APP_URL` to the real frontend URL in production
+- Set `BACKEND_ORIGIN` to the deployed backend URL in production
+- Set `APP_FRONTEND_BASE_URL`, `APP_FRONTEND_ALLOWED_ORIGINS`, and `APP_OAUTH_REDIRECT_BASE_URL` to the deployed frontend URL(s)
+- The backend enables forwarded-header handling so OAuth redirects and absolute URLs work correctly behind a reverse proxy

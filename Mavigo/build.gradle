@@ -42,6 +42,7 @@ dependencies {
     annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
 
     runtimeOnly 'com.h2database:h2'
+    runtimeOnly 'org.postgresql:postgresql'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.security:spring-security-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
@@ -51,10 +52,6 @@ dependencies {
     testImplementation 'io.cucumber:cucumber-java:7.18.1'
     testImplementation 'io.cucumber:cucumber-spring:7.18.1'
     testImplementation 'io.cucumber:cucumber-junit-platform-engine:7.18.1'
-
-    // Selenium UI Testing
-    testImplementation 'org.seleniumhq.selenium:selenium-java:4.25.0'
-    testImplementation 'io.github.bonigarcia:webdrivermanager:5.9.2'
 
     // Lombok
     compileOnly 'org.projectlombok:lombok'

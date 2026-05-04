@@ -312,9 +312,9 @@ class GoogleTasksControllerTest {
         when(userService.linkGoogleAccount(eq(userId), any())).thenReturn(user);
 
         ResponseEntity<String> response = controller.linkGoogleAccount(userId, principal);
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertTrue(response.getBody().contains("Google Tasks linked"));
-        assertTrue(response.getBody().contains("Test User"));
+        assertEquals(HttpStatus.FOUND, response.getStatusCode());
+        assertTrue(response.getHeaders().getLocation().toString().contains("/google-link-complete"));
+        assertTrue(response.getHeaders().getLocation().toString().contains("Test+User"));
     }
 
     @Test
@@ -326,9 +326,9 @@ class GoogleTasksControllerTest {
         when(userService.linkGoogleAccount(eq(userId), any())).thenThrow(new RuntimeException("Link failed"));
 
         ResponseEntity<String> response = controller.linkGoogleAccount(userId, principal);
-        assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
-        assertTrue(response.getBody().contains("Link Failed"));
-        assertTrue(response.getBody().contains("Link failed"));
+        assertEquals(HttpStatus.FOUND, response.getStatusCode());
+        assertTrue(response.getHeaders().getLocation().toString().contains("/google-link-error"));
+        assertTrue(response.getHeaders().getLocation().toString().contains("Link+failed"));
     }
 
     private OAuth2AuthorizedClient buildAuthorizedClient(String subject) {

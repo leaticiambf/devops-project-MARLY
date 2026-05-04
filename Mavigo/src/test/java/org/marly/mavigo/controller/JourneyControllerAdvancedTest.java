@@ -21,6 +21,7 @@ import org.marly.mavigo.filter.JwtFilter;
 import org.marly.mavigo.models.journey.Journey;
 import org.marly.mavigo.security.JwtAuthenticationFilter;
 import org.marly.mavigo.security.JwtTokenService;
+import org.marly.mavigo.security.RequestOwnershipGuard;
 import org.marly.mavigo.models.journey.JourneyStatus;
 import org.marly.mavigo.models.user.User;
 import org.marly.mavigo.repository.UserRepository;
@@ -100,6 +101,9 @@ class JourneyControllerAdvancedTest {
 
     @MockitoBean
     private JwtFilter jwtFilter;
+
+    @MockitoBean
+    private RequestOwnershipGuard requestOwnershipGuard;
 
     @BeforeEach
     void setupFilter() throws ServletException, IOException {
