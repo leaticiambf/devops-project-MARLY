@@ -1,5 +1,10 @@
 # Mavigo
 
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![CI](https://github.com/Aminmiri82/devops-project-MARLY/actions/workflows/ci.yml/badge.svg)](https://github.com/Aminmiri82/devops-project-MARLY/actions/workflows/ci.yml)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=Aminmiri82_devops-project-MARLY&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=Aminmiri82_devops-project-MARLY)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=Aminmiri82_devops-project-MARLY&metric=coverage)](https://sonarcloud.io/summary/new_code?id=Aminmiri82_devops-project-MARLY)
+
 Mavigo is a split web application for planning Paris public transport journeys, managing Google Tasks along the route, and tracking eco-score progress.
 
 ## Repository Layout
