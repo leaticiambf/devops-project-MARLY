@@ -6,6 +6,7 @@ import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -105,15 +106,27 @@ public class JourneyController {
         JourneyPreferences preferences = mapPreferences(command.preferences(), ecoModeEnabled);
 
         LocalDateTime departure = parseDepartureTime(request.departureTime());
+        String originQuery = coordinateQueryOrFallback(
+                request.originLatitude(),
+                request.originLongitude(),
+                request.originQuery());
+        String destinationQuery = coordinateQueryOrFallback(
+                request.destinationLatitude(),
+                request.destinationLongitude(),
+                request.destinationQuery());
 
         JourneyPlanningParameters parameters = new JourneyPlanningParameters(
                 request.userId(),
-                request.originQuery(),
-                request.destinationQuery(),
+                originQuery,
+                destinationQuery,
                 departure,
                 preferences,
                 ecoModeEnabled,
-                Boolean.TRUE.equals(request.wheelchairAccessible()));
+                Boolean.TRUE.equals(request.wheelchairAccessible()),
+                usesCoordinates(request.originLatitude(), request.originLongitude()) ? request.originQuery() : null,
+                usesCoordinates(request.destinationLatitude(), request.destinationLongitude())
+                        ? request.destinationQuery()
+                        : null);
 
         java.util.List<JourneyResponse> responses;
         boolean useTaskOptimization = (request.taskDetails() != null && !request.taskDetails().isEmpty())
@@ -354,6 +367,19 @@ public class JourneyController {
         if (requestOwnershipGuard != null) {
             requestOwnershipGuard.requireJourneyAccess(journeyId, authentication);
         }
+    }
+
+    private static String coordinateQueryOrFallback(Double latitude, Double longitude, String fallback) {
+        if (!usesCoordinates(latitude, longitude)) {
+            return fallback;
+        }
+        return String.format(Locale.ROOT, "%.6f, %.6f", latitude, longitude);
+    }
+
+    private static boolean usesCoordinates(Double latitude, Double longitude) {
+        return latitude != null && longitude != null
+                && latitude >= -90 && latitude <= 90
+                && longitude >= -180 && longitude <= 180;
     }
 
     private static LocalDateTime parseDepartureTime(String raw) {

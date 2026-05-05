@@ -19,12 +19,35 @@ function buildQuery(params: NearbyRestaurantParams) {
   return searchParams.toString();
 }
 
+export type CorridorCoordinates = Array<[number, number]>;
+
 export const tourismApi = {
   nearbyRestaurants(params: NearbyRestaurantParams, token: string) {
     return apiRequest<TourismSuggestion[]>(
       `/api/tourism/nearby?${buildQuery(params)}`,
       {
         method: "GET",
+        token,
+      },
+    );
+  },
+
+  restaurantsAlongJourney(journeyId: string, token: string) {
+    return apiRequest<TourismSuggestion[]>(
+      `/api/tourism/journey/${encodeURIComponent(journeyId)}/restaurants-along-route`,
+      {
+        method: "GET",
+        token,
+      },
+    );
+  },
+
+  restaurantsAlongCorridor(coordinates: CorridorCoordinates, token: string) {
+    return apiRequest<TourismSuggestion[]>(
+      "/api/tourism/corridor/restaurants",
+      {
+        method: "POST",
+        body: { coordinates },
         token,
       },
     );

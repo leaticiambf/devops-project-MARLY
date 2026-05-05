@@ -20,6 +20,12 @@ public class PlanJourneyRequest {
     @NotBlank
     private String destinationQuery;
 
+    private Double originLatitude;
+    private Double originLongitude;
+    private Double destinationLatitude;
+    private Double destinationLongitude;
+    private String source;
+
     @NotBlank
     private String departureTime;
 
@@ -66,6 +72,26 @@ public class PlanJourneyRequest {
 
     public String destinationQuery() {
         return destinationQuery;
+    }
+
+    public Double originLatitude() {
+        return originLatitude;
+    }
+
+    public Double originLongitude() {
+        return originLongitude;
+    }
+
+    public Double destinationLatitude() {
+        return destinationLatitude;
+    }
+
+    public Double destinationLongitude() {
+        return destinationLongitude;
+    }
+
+    public String source() {
+        return source;
     }
 
     public String departureTime() {
@@ -118,6 +144,46 @@ public class PlanJourneyRequest {
 
     public void setDestinationQuery(String destinationQuery) {
         this.destinationQuery = destinationQuery;
+    }
+
+    public Double getOriginLatitude() {
+        return originLatitude;
+    }
+
+    public void setOriginLatitude(Double originLatitude) {
+        this.originLatitude = originLatitude;
+    }
+
+    public Double getOriginLongitude() {
+        return originLongitude;
+    }
+
+    public void setOriginLongitude(Double originLongitude) {
+        this.originLongitude = originLongitude;
+    }
+
+    public Double getDestinationLatitude() {
+        return destinationLatitude;
+    }
+
+    public void setDestinationLatitude(Double destinationLatitude) {
+        this.destinationLatitude = destinationLatitude;
+    }
+
+    public Double getDestinationLongitude() {
+        return destinationLongitude;
+    }
+
+    public void setDestinationLongitude(Double destinationLongitude) {
+        this.destinationLongitude = destinationLongitude;
+    }
+
+    public String getSource() {
+        return source;
+    }
+
+    public void setSource(String source) {
+        this.source = source;
     }
 
     public String getDepartureTime() {

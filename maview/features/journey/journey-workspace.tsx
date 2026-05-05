@@ -6,20 +6,31 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { useSearchParams } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { StatePanel } from "@/components/ui/state-panel";
-import { TransportMap } from "@/components/map/transport-map";
+import { TransportMap, type TouristMapRestaurant } from "@/components/map/transport-map";
 import {
   TRANSPORT_COLORS,
+  concatTransportSegmentPolylines,
   fetchWalkingRoute,
   type TransportSegment,
   type TransportStop,
   type TransportType,
 } from "@/components/map/map-utils";
+import { tourismApi } from "@/lib/api/tourism";
+import {
+  MAP_RESTAURANT_MAX_VISIBLE,
+  MAP_RESTAURANT_MIN_RATING,
+  mergeTourismLists,
+  pickRestaurantsForMap,
+  suggestionStableKey,
+} from "@/features/journey/tourist-route-sampling";
+import { EXPLORE_CURRENT_LOCATION_LABEL } from "@/features/tourism/tourism-workspace";
 import { googleTasksApi } from "@/lib/api/google";
 import { journeysApi } from "@/lib/api/journeys";
 import { usersApi } from "@/lib/api/users";
@@ -29,6 +40,7 @@ import type {
   JourneyTaskOnRoute,
   LineInfo,
   StopInfo,
+  TourismSuggestion,
 } from "@/lib/types/api";
 import {
   formatDateTime,
@@ -39,6 +51,8 @@ import {
   getLocalDateTimeInputValue,
   getTomorrowDateString,
   getTomorrowLocalDateTimeValue,
+  isUuidString,
+  normalizeLocalDateTimeForApi,
 } from "@/lib/utils/format";
 import {
   forwardGeocodeMapbox,
@@ -50,6 +64,13 @@ import { useToast } from "@/providers/toast-provider";
 type PlannerState = {
   originQuery: string;
   destinationQuery: string;
+  originApiQuery: string;
+  destinationApiQuery: string;
+  originLatitude: number | null;
+  originLongitude: number | null;
+  destinationLatitude: number | null;
+  destinationLongitude: number | null;
+  source: "EXPLORE_RESTAURANT" | null;
   departureTime: string;
   intermediateQuery: string;
   intermediateDepartureTime: string;
@@ -57,7 +78,73 @@ type PlannerState = {
   wheelchairAccessible: boolean;
   namedComfortSettingId: string;
   includeTaskOptimization: boolean;
+  touristModeEnabled: boolean;
 };
+
+function formatCoordPairForApi(lat: number, lng: number) {
+  return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+}
+
+type ExploreRestaurantPlannerParse =
+  | { ok: false; error: "missing_destination" | "missing_origin" }
+  | { ok: true; overrides: Partial<PlannerState> };
+
+function parseExploreRestaurantPlannerSearchParams(
+  searchParams: URLSearchParams,
+): ExploreRestaurantPlannerParse {
+  const destinationFromParams = searchParams.get("destination")?.trim() ?? "";
+  const destinationLat = Number(searchParams.get("destinationLat"));
+  const destinationLng = Number(searchParams.get("destinationLng"));
+  const hasDestinationCoordinates =
+    Number.isFinite(destinationLat) && Number.isFinite(destinationLng);
+  const coordinateDestinationQuery = hasDestinationCoordinates
+    ? formatCoordPairForApi(destinationLat, destinationLng)
+    : "";
+  const destinationQuery =
+    destinationFromParams || coordinateDestinationQuery;
+
+  const originAddressParam = searchParams.get("originAddress")?.trim() ?? "";
+  const originLat = Number(searchParams.get("originLat"));
+  const originLng = Number(searchParams.get("originLng"));
+  const hasOriginCoordinates =
+    Number.isFinite(originLat) && Number.isFinite(originLng);
+  const coordinateOriginQuery = hasOriginCoordinates
+    ? formatCoordPairForApi(originLat, originLng)
+    : "";
+
+  const originQuery =
+    originAddressParam && originAddressParam !== EXPLORE_CURRENT_LOCATION_LABEL
+      ? originAddressParam
+      : coordinateOriginQuery;
+
+  if (!destinationQuery) {
+    return { ok: false, error: "missing_destination" };
+  }
+  if (!originQuery) {
+    return { ok: false, error: "missing_origin" };
+  }
+
+  return {
+    ok: true,
+    overrides: {
+      originQuery,
+      destinationQuery,
+      originApiQuery: coordinateOriginQuery,
+      destinationApiQuery: coordinateDestinationQuery,
+      originLatitude: hasOriginCoordinates ? originLat : null,
+      originLongitude: hasOriginCoordinates ? originLng : null,
+      destinationLatitude: hasDestinationCoordinates ? destinationLat : null,
+      destinationLongitude: hasDestinationCoordinates ? destinationLng : null,
+      source: "EXPLORE_RESTAURANT",
+      departureTime: getLocalDateTimeInputValue(),
+      intermediateQuery: "",
+      intermediateDepartureTime: "",
+      includeTaskOptimization: false,
+      ecoModeEnabled: false,
+      namedComfortSettingId: "",
+    },
+  };
+}
 
 type PlanningOutcome = {
   journeys: JourneyResponse[];
@@ -65,12 +152,40 @@ type PlanningOutcome = {
   taskOptimizationAttempted: boolean;
 };
 
+function optionalComfortPresetUuid(value: string): string | undefined {
+  const trimmed = value.trim();
+  if (!trimmed || !isUuidString(trimmed)) {
+    return undefined;
+  }
+  return trimmed;
+}
+
 type JourneyTaskMarker = {
   id: string;
   title: string;
   coordinates: [number, number];
   addressHint?: string | null;
 };
+
+async function readBrowserLocation(options?: PositionOptions): Promise<{
+  latitude: number;
+  longitude: number;
+} | null> {
+  if (typeof navigator === "undefined" || !navigator.geolocation) {
+    return null;
+  }
+  return await new Promise((resolve) => {
+    navigator.geolocation.getCurrentPosition(
+      (position) =>
+        resolve({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        }),
+      () => resolve(null),
+      options ?? { enableHighAccuracy: false, timeout: 2_500, maximumAge: 300_000 },
+    );
+  });
+}
 
 /** Lieu saisi côté planificateur / Google (`includedTasks`) quand l’API renvoie le lien. */
 function includedLocationQueryForTask(
@@ -712,7 +827,10 @@ function buildTaskWalkingSegments(
   return result;
 }
 
-const ACTIVE_JOURNEY_STORAGE_KEY = "maview-active-journey";
+const ACTIVE_JOURNEY_STORAGE_KEY = "mavigo-active-journey";
+const TOURIST_MODE_STORAGE_KEY = "maview-tourist-mode-enabled";
+const ROUTE_TOURIST_SUGGESTIONS_STORAGE_KEY_PREFIX =
+  "maview-route-tourist-suggestions:";
 
 function persistActiveJourney(journey: JourneyResponse | null) {
   try {
@@ -733,6 +851,49 @@ function restoreActiveJourney(): JourneyResponse | null {
     return JSON.parse(raw) as JourneyResponse;
   } catch {
     return null;
+  }
+}
+
+function restoreTouristModeEnabled(): boolean {
+  try {
+    if (typeof window === "undefined") return false;
+    return sessionStorage.getItem(TOURIST_MODE_STORAGE_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function persistTouristModeEnabled(enabled: boolean) {
+  try {
+    sessionStorage.setItem(TOURIST_MODE_STORAGE_KEY, String(enabled));
+  } catch {
+    // Ignore unavailable sessionStorage.
+  }
+}
+
+function routeTouristSuggestionsStorageKey(journeyId: string, geometryKey: string) {
+  return `${ROUTE_TOURIST_SUGGESTIONS_STORAGE_KEY_PREFIX}${journeyId}:${geometryKey}`;
+}
+
+function restoreRouteTouristSuggestions(storageKey: string): TourismSuggestion[] | null {
+  try {
+    const raw = sessionStorage.getItem(storageKey);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as TourismSuggestion[]) : null;
+  } catch {
+    return null;
+  }
+}
+
+function persistRouteTouristSuggestions(
+  storageKey: string,
+  suggestions: TourismSuggestion[],
+) {
+  try {
+    sessionStorage.setItem(storageKey, JSON.stringify(suggestions));
+  } catch {
+    // Ignore cache write failures.
   }
 }
 
@@ -1090,12 +1251,22 @@ async function completeIncludedGoogleTasks(
 
 export function JourneyWorkspace({ mapboxToken }: JourneyWorkspaceProps) {
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
+  const exploreRestaurantSearchKey = searchParams.toString();
+  const isExploreRestaurantDeeplink = searchParams.get("exploreRestaurant") === "1";
   const { user, token } = useAuth();
   const { toast } = useToast();
 
   const [planner, setPlanner] = useState<PlannerState>({
     originQuery: "",
     destinationQuery: "",
+    originApiQuery: "",
+    destinationApiQuery: "",
+    originLatitude: null,
+    originLongitude: null,
+    destinationLatitude: null,
+    destinationLongitude: null,
+    source: null,
     departureTime: getLocalDateTimeInputValue(),
     intermediateQuery: "",
     intermediateDepartureTime: "",
@@ -1103,16 +1274,25 @@ export function JourneyWorkspace({ mapboxToken }: JourneyWorkspaceProps) {
     wheelchairAccessible: false,
     namedComfortSettingId: "",
     includeTaskOptimization: false,
+    touristModeEnabled: false,
   });
   const [results, setResults] = useState<JourneyResponse[]>([]);
   const [currentJourney, setCurrentJourney] = useState<JourneyResponse | null>(null);
   const [journeyMessage, setJourneyMessage] = useState<string | null>(null);
+  const exploreRestaurantDeeplinkProcessedKeyRef = useRef("");
   const liveJourneyMapRef = useRef<HTMLDivElement>(null);
   const [journeyMapFlyTo, setJourneyMapFlyTo] = useState<{
     lng: number;
     lat: number;
     id: number;
   } | null>(null);
+
+  const [routeTouristSuggestions, setRouteTouristSuggestions] = useState<
+    TourismSuggestion[]
+  >([]);
+  const [routeTouristFetch, setRouteTouristFetch] = useState<
+    "idle" | "loading" | "done" | "error"
+  >("idle");
 
   useEffect(() => {
     setJourneyMapFlyTo(null);
@@ -1133,13 +1313,30 @@ export function JourneyWorkspace({ mapboxToken }: JourneyWorkspaceProps) {
   }, []);
 
   useEffect(() => {
+    if (isExploreRestaurantDeeplink) {
+      return;
+    }
     const restored = restoreActiveJourney();
     if (restored) setCurrentJourney(restored);
+  }, [isExploreRestaurantDeeplink]);
+
+  useEffect(() => {
+    const restored = restoreTouristModeEnabled();
+    if (!restored) {
+      return;
+    }
+    setPlanner((current) =>
+      current.touristModeEnabled ? current : { ...current, touristModeEnabled: true },
+    );
   }, []);
 
   useEffect(() => {
     persistActiveJourney(currentJourney);
   }, [currentJourney]);
+
+  useEffect(() => {
+    persistTouristModeEnabled(planner.touristModeEnabled);
+  }, [planner.touristModeEnabled]);
   const [disruptionMode, setDisruptionMode] = useState<"line" | "station" | null>(null);
   const [showOriginSuggestion, setShowOriginSuggestion] = useState(false);
   const [isResolvingCurrentLocation, setIsResolvingCurrentLocation] = useState(false);
@@ -1157,7 +1354,9 @@ export function JourneyWorkspace({ mapboxToken }: JourneyWorkspaceProps) {
     queryKey: ["journey-suggestions", user?.userId, getTomorrowDateString()],
     queryFn: () =>
       googleTasksApi.listSuggestions(user!.userId, getTomorrowDateString(), token!),
-    enabled: Boolean(user?.userId && token && googleLinked),
+    enabled: Boolean(
+      user?.userId && token && googleLinked && !isExploreRestaurantDeeplink,
+    ),
   });
 
   const linesQuery = useQuery({
@@ -1181,6 +1380,11 @@ export function JourneyWorkspace({ mapboxToken }: JourneyWorkspaceProps) {
       if (!user?.userId || !token) {
         throw new Error("An authenticated session is required.");
       }
+      if (!isUuidString(user.userId)) {
+        throw new Error(
+          "Identifiant utilisateur invalide dans la session. Déconnectez-vous puis reconnectez-vous.",
+        );
+      }
       const effectivePlanner = {
         ...planner,
         ...plannerOverrides,
@@ -1195,29 +1399,53 @@ export function JourneyWorkspace({ mapboxToken }: JourneyWorkspaceProps) {
       if (!effectivePlanner.departureTime) {
         throw new Error("Departure time is required.");
       }
+      const departureTimeForApi = normalizeLocalDateTimeForApi(effectivePlanner.departureTime);
+      if (!departureTimeForApi) {
+        throw new Error("Departure time is required.");
+      }
+
+      const viaTimeRaw = effectivePlanner.intermediateDepartureTime?.trim();
+      const intermediateDepartureTimeForApi =
+        viaTimeRaw && effectivePlanner.intermediateQuery.trim()
+          ? normalizeLocalDateTimeForApi(viaTimeRaw)
+          : undefined;
+
       if (
-        effectivePlanner.intermediateQuery &&
-        effectivePlanner.intermediateDepartureTime &&
-        effectivePlanner.intermediateDepartureTime <= effectivePlanner.departureTime
+        effectivePlanner.intermediateQuery.trim() &&
+        viaTimeRaw &&
+        intermediateDepartureTimeForApi &&
+        intermediateDepartureTimeForApi <= departureTimeForApi
       ) {
         throw new Error("Via departure must be after the first departure.");
       }
 
+      const comfortPresetId = optionalComfortPresetUuid(
+        effectivePlanner.namedComfortSettingId,
+      );
+
       const payload: JourneyPlanRequest = {
         journey: {
-          userId: user.userId,
-          originQuery: effectivePlanner.originQuery.trim(),
-          destinationQuery: effectivePlanner.destinationQuery.trim(),
-          departureTime: effectivePlanner.departureTime,
+          userId: user.userId.trim(),
+          originQuery:
+            effectivePlanner.originApiQuery.trim() ||
+            effectivePlanner.originQuery.trim(),
+          destinationQuery:
+            effectivePlanner.destinationApiQuery.trim() ||
+            effectivePlanner.destinationQuery.trim(),
+          originLatitude: effectivePlanner.originLatitude,
+          originLongitude: effectivePlanner.originLongitude,
+          destinationLatitude: effectivePlanner.destinationLatitude,
+          destinationLongitude: effectivePlanner.destinationLongitude,
+          source: effectivePlanner.source,
+          departureTime: departureTimeForApi,
           ecoModeEnabled: effectivePlanner.ecoModeEnabled,
           wheelchairAccessible: effectivePlanner.wheelchairAccessible,
           intermediateQuery: effectivePlanner.intermediateQuery.trim() || undefined,
-          intermediateDepartureTime:
-            effectivePlanner.intermediateDepartureTime || undefined,
+          intermediateDepartureTime: intermediateDepartureTimeForApi,
         },
         preferences: {
-          comfortMode: Boolean(effectivePlanner.namedComfortSettingId),
-          namedComfortSettingId: effectivePlanner.namedComfortSettingId || undefined,
+          comfortMode: Boolean(comfortPresetId),
+          namedComfortSettingId: comfortPresetId,
         },
       };
 
@@ -1254,6 +1482,26 @@ export function JourneyWorkspace({ mapboxToken }: JourneyWorkspaceProps) {
       };
     },
     onSuccess: ({ journeys, fallbackUsed, taskOptimizationAttempted }) => {
+      if (isExploreRestaurantDeeplink && journeys.length) {
+        const selected = journeys[0];
+        setCurrentJourney(selected);
+        setResults([]);
+        setDisruptionMode(null);
+        setJourneyMessage("Itinéraire vers le restaurant prêt sur la carte.");
+        toast({
+          title: "Itinéraire prêt",
+          description: "La première option a été affichée automatiquement sur la carte.",
+          variant: "success",
+        });
+        requestAnimationFrame(() => {
+          liveJourneyMapRef.current?.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+          });
+        });
+        return;
+      }
+
       setCurrentJourney(null);
       setResults(journeys);
       setDisruptionMode(null);
@@ -1608,8 +1856,6 @@ export function JourneyWorkspace({ mapboxToken }: JourneyWorkspaceProps) {
     })();
 
     return () => controller.abort();
-    // `taskWalkAnchorsKey` capture l'identité complète des ancres ; pas besoin
-    // de remettre `includedTaskAnchors` directement en dépendance.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskWalkAnchorsKey, mapboxToken]);
 
@@ -1629,6 +1875,29 @@ export function JourneyWorkspace({ mapboxToken }: JourneyWorkspaceProps) {
       stops: base.stops,
     };
   }, [currentJourney, resolvedJourneyTasks, includedTaskAnchors, taskWalkLegs]);
+
+  const liveTouristRouteGeometryKey = useMemo(() => {
+    if (!liveJourneyMapData?.segments.length) {
+      return "";
+    }
+    return liveJourneyMapData.segments
+      .map((segment) => {
+        const coords = segment.coordinates;
+        const head = coords[0];
+        const tail = coords[coords.length - 1];
+        return [
+          segment.id,
+          coords.length,
+          head ? `${head[0]},${head[1]}` : "",
+          tail ? `${tail[0]},${tail[1]}` : "",
+        ].join(":");
+      })
+      .join("|");
+  }, [liveJourneyMapData]);
+
+  const liveJourneyMapDataRef = useRef(liveJourneyMapData);
+  liveJourneyMapDataRef.current = liveJourneyMapData;
+
   const [taskGeocodedAddresses, setTaskGeocodedAddresses] = useState<
     Record<string, string>
   >({});
@@ -1707,6 +1976,147 @@ export function JourneyWorkspace({ mapboxToken }: JourneyWorkspaceProps) {
         addressHint: resolveTaskAddressLine(task, taskGeocodedAddresses),
       }));
   }, [currentJourney, resolvedJourneyTasks, taskGeocodedAddresses]);
+
+  useEffect(() => {
+    if (!token || !planner.touristModeEnabled || !currentJourney) {
+      setRouteTouristSuggestions([]);
+      setRouteTouristFetch("idle");
+      return;
+    }
+    const mapData = liveJourneyMapDataRef.current;
+    if (!mapData?.segments.length) {
+      setRouteTouristSuggestions([]);
+      setRouteTouristFetch("idle");
+      return;
+    }
+
+    const segments = mapData.segments;
+    const journeyIdSnapshot = currentJourney.journeyId;
+    const cacheKey = routeTouristSuggestionsStorageKey(
+      journeyIdSnapshot,
+      liveTouristRouteGeometryKey,
+    );
+    const cachedSuggestions = restoreRouteTouristSuggestions(cacheKey);
+    const controller = new AbortController();
+    if (cachedSuggestions) {
+      setRouteTouristSuggestions(cachedSuggestions);
+      setRouteTouristFetch("done");
+    } else {
+      setRouteTouristFetch("loading");
+    }
+
+    void (async () => {
+      const fulfilledLists = (
+        results: PromiseSettledResult<TourismSuggestion[]>[],
+      ): TourismSuggestion[][] =>
+        results.flatMap((result) =>
+          result.status === "fulfilled" && Array.isArray(result.value)
+            ? [result.value]
+            : [],
+        );
+
+      try {
+        const corridorLngLat = concatTransportSegmentPolylines(segments);
+
+        const routeResults = await Promise.allSettled([
+          tourismApi.restaurantsAlongJourney(journeyIdSnapshot, token),
+          corridorLngLat.length >= 2
+            ? tourismApi.restaurantsAlongCorridor(corridorLngLat, token)
+            : Promise.resolve([] as TourismSuggestion[]),
+        ]);
+
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        const routeLists = fulfilledLists(routeResults);
+        const routeMerged = mergeTourismLists(routeLists);
+        const baseLists =
+          routeMerged.length > 0 || !cachedSuggestions
+            ? routeLists
+            : [cachedSuggestions];
+        const baseMerged = routeMerged.length > 0 ? routeMerged : (cachedSuggestions ?? []);
+        setRouteTouristSuggestions(baseMerged);
+        setRouteTouristFetch("done");
+        if (routeMerged.length > 0 || !cachedSuggestions) {
+          persistRouteTouristSuggestions(cacheKey, routeMerged);
+        }
+
+        const userGeo = await readBrowserLocation();
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        let fromNearby: TourismSuggestion[] = [];
+        if (
+          userGeo &&
+          Number.isFinite(userGeo.latitude) &&
+          Number.isFinite(userGeo.longitude)
+        ) {
+          try {
+            fromNearby = await tourismApi.nearbyRestaurants(
+              {
+                latitude: userGeo.latitude,
+                longitude: userGeo.longitude,
+                radiusMeters: 2500,
+                limit: 10,
+              },
+              token,
+            );
+          } catch {
+            fromNearby = [];
+          }
+        }
+
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        const merged = mergeTourismLists([...baseLists, fromNearby]);
+
+        setRouteTouristSuggestions(merged);
+        setRouteTouristFetch("done");
+        persistRouteTouristSuggestions(cacheKey, merged);
+      } catch {
+        if (controller.signal.aborted) {
+          return;
+        }
+        if (cachedSuggestions) {
+          setRouteTouristSuggestions(cachedSuggestions);
+          setRouteTouristFetch("done");
+          return;
+        }
+        setRouteTouristSuggestions([]);
+        setRouteTouristFetch("error");
+      }
+    })();
+
+    return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, planner.touristModeEnabled, currentJourney?.journeyId, liveTouristRouteGeometryKey]);
+
+  const liveTouristMapMarkers = useMemo((): TouristMapRestaurant[] => {
+    if (!planner.touristModeEnabled || !routeTouristSuggestions.length) {
+      return [];
+    }
+    const picked = pickRestaurantsForMap(routeTouristSuggestions);
+    return picked.flatMap((s): TouristMapRestaurant[] => {
+      if (s.latitude == null || s.longitude == null) {
+        return [];
+      }
+      return [
+        {
+          id: suggestionStableKey(s),
+          name: s.name,
+          coordinates: [s.longitude, s.latitude],
+          rating: s.rating,
+          address: s.address,
+          websiteUrl: s.websiteUrl,
+        },
+      ];
+    });
+  }, [planner.touristModeEnabled, routeTouristSuggestions]);
+
   const liveJourneyRouteTasksSummary = useMemo(() => {
     if (!currentJourney) {
       return null;
@@ -1757,6 +2167,11 @@ export function JourneyWorkspace({ mapboxToken }: JourneyWorkspaceProps) {
     if (planner.includeTaskOptimization && !googleLinked) {
       notices.push("Connect Google Tasks to include errands in route planning.");
     }
+    if (planner.touristModeEnabled) {
+      notices.push(
+        `Mode touriste : jusqu’à ${MAP_RESTAURANT_MAX_VISIBLE} restaurants sur la carte (note ≥ ${MAP_RESTAURANT_MIN_RATING}), choisis au hasard parmi les propositions géolocalisées ; après « Start journey », le serveur peut combiner trajet, corridor carte et géolocalisation (Yelp si clé configurée).`,
+      );
+    }
 
     return notices;
   }, [googleLinked, planner]);
@@ -1784,6 +2199,22 @@ export function JourneyWorkspace({ mapboxToken }: JourneyWorkspaceProps) {
     setPlanner((current) => ({
       ...current,
       [key]: value,
+      ...(key === "originQuery"
+        ? {
+            originApiQuery: "",
+            originLatitude: null,
+            originLongitude: null,
+            source: null,
+          }
+        : {}),
+      ...(key === "destinationQuery"
+        ? {
+            destinationApiQuery: "",
+            destinationLatitude: null,
+            destinationLongitude: null,
+            source: null,
+          }
+        : {}),
     }));
   }
 
@@ -1804,6 +2235,13 @@ export function JourneyWorkspace({ mapboxToken }: JourneyWorkspaceProps) {
       ...current,
       originQuery: user.homeAddress ?? "",
       destinationQuery: locationQuery,
+      originApiQuery: "",
+      destinationApiQuery: "",
+      originLatitude: null,
+      originLongitude: null,
+      destinationLatitude: null,
+      destinationLongitude: null,
+      source: null,
       departureTime: getTomorrowLocalDateTimeValue(),
     }));
     toast({
@@ -1923,6 +2361,77 @@ export function JourneyWorkspace({ mapboxToken }: JourneyWorkspaceProps) {
       resolveAddressFromCoordinates,
     ],
   );
+
+  useEffect(() => {
+    if (!user?.userId || !token) {
+      return;
+    }
+
+    if (!isExploreRestaurantDeeplink) {
+      exploreRestaurantDeeplinkProcessedKeyRef.current = "";
+      return;
+    }
+
+    if (
+      exploreRestaurantDeeplinkProcessedKeyRef.current === exploreRestaurantSearchKey
+    ) {
+      return;
+    }
+
+    const consumeKey = () => {
+      exploreRestaurantDeeplinkProcessedKeyRef.current = exploreRestaurantSearchKey;
+    };
+
+    const parsed = parseExploreRestaurantPlannerSearchParams(searchParams);
+
+    if (!parsed.ok) {
+      consumeKey();
+      toast({
+        title:
+          parsed.error === "missing_destination" ? "Lien incomplet" : "Départ manquant",
+        description:
+          parsed.error === "missing_destination"
+            ? "Le lien depuis Explore ne contient pas de destination (restaurant)."
+            : "Relancez une recherche depuis Explore avec une adresse ou votre position, puis rouvrez la carte.",
+        variant: "error",
+      });
+      return;
+    }
+
+    const { overrides } = parsed;
+
+    consumeKey();
+
+    persistActiveJourney(null);
+    setCurrentJourney(null);
+    setResults([]);
+    setDisruptionMode(null);
+    setRouteTouristSuggestions([]);
+    setRouteTouristFetch("idle");
+    setJourneyMapFlyTo(null);
+
+    setPlanner((current) => ({
+      ...current,
+      ...overrides,
+    }));
+
+    setJourneyMessage("Depuis Explore : calcul automatique de l'itinéraire en cours...");
+
+    toast({
+      title: "Calcul lancé",
+      description:
+        "Départ et arrivée sont remplis depuis Explore, le trajet est en cours de calcul.",
+      variant: "success",
+    });
+
+    planJourney.mutate(overrides);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- planJourney/toast non stables
+  }, [
+    exploreRestaurantSearchKey,
+    isExploreRestaurantDeeplink,
+    token,
+    user?.userId,
+  ]);
 
   if (!user || !token) {
     return null;
@@ -2097,8 +2606,17 @@ export function JourneyWorkspace({ mapboxToken }: JourneyWorkspaceProps) {
               />
               Include Google Tasks stops
             </label>
+            <label className="flex items-center gap-3 rounded-lg bg-surface-strong border border-line px-4 py-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={planner.touristModeEnabled}
+                onChange={(event) =>
+                  updatePlanner("touristModeEnabled", event.target.checked)
+                }
+              />
+              Mode touriste (restaurants sur la carte du trajet)
+            </label>
           </div>
-
           <div className="mt-6 flex flex-wrap gap-3">
             <Button
               onClick={() => planJourney.mutate(undefined)}
@@ -2217,16 +2735,17 @@ export function JourneyWorkspace({ mapboxToken }: JourneyWorkspaceProps) {
               Follow your active route on the map
             </h2>
             <p className="mt-2 text-sm text-secondary">
-              Le marqueur bleu est votre position. Les segments colorés viennent du trajet. La
-              pastille violette « ARRIVÉE » (avec le libellé de destination) et le losange sous
-              l&apos;étiquette indiquent l&apos;adresse ou le lieu d&apos;arrivée saisi dans le
-              planificateur, une fois géocodé. Le petit point orange sur le trajet TC marque souvent
-              la fin du dernier segment transport ; ce n&apos;est pas forcément la même chose que
-              l&apos;adresse d&apos;arrivée saisie. Un tracé bleu en pointillés relie le dernier
-              arrêt bus, métro ou train à l&apos;arrivée.               Les marqueurs ambre « TÂCHE » (bord gauche épais) indiquent une étape à faire, avec titre
-              et adresse. Si la tâche a été intégrée dans l&apos;itinéraire optimisé, elle est placée exactement
-              sur le trajet (le parcours passe déjà par ce point, sans détour artificiel) ; sinon, un court
-              tracé bleu relie le trajet à la tâche.
+              Le marqueur bleu est votre position. Les segments colorés viennent du trajet. La pastille
+              violette « ARRIVÉE » (avec le libellé de destination) et le losange sous l&apos;étiquette
+              indiquent l&apos;adresse ou le lieu d&apos;arrivée saisi dans le planificateur, une fois
+              géocodé. Le petit point orange sur le trajet TC marque souvent la fin du dernier segment
+              transport ; ce n&apos;est pas forcément la même chose que l&apos;adresse d&apos;arrivée
+              saisie. Un tracé bleu en pointillés relie le dernier arrêt bus, métro ou train à
+              l&apos;arrivée. Les marqueurs ambre « TÂCHE » indiquent une étape à faire, avec titre et
+              adresse. Si la tâche a été intégrée dans l&apos;itinéraire optimisé, elle est placée
+              exactement sur le trajet ; sinon, un court tracé bleu relie le trajet à la tâche. Avec le
+              mode touriste du planificateur, les pastilles « RESTAURANT » (sarcelle) signalent des
+              établissements à proximité du tracé affiché (même flux que la page Explorer).
             </p>
             {liveJourneyRouteTasksSummary ? (
               <div className="mt-4 rounded-xl border border-amber-400/40 bg-amber-400/10 px-4 py-3 text-sm">
@@ -2281,6 +2800,9 @@ export function JourneyWorkspace({ mapboxToken }: JourneyWorkspaceProps) {
                   segments={liveJourneyMapData.segments}
                   arrivalAddressQuery={currentJourney.destinationLabel}
                   tasks={liveJourneyTaskMarkers}
+                  touristRestaurants={
+                    planner.touristModeEnabled ? liveTouristMapMarkers : null
+                  }
                   onRequestReroute={handleRerouteFromCurrentLocation}
                   isRerouting={isReroutingFromLocation}
                   flyToRequest={journeyMapFlyTo}
@@ -2292,6 +2814,19 @@ export function JourneyWorkspace({ mapboxToken }: JourneyWorkspaceProps) {
                   tone="warning"
                 />
               )}
+              {planner.touristModeEnabled ? (
+                <p className="mt-3 text-xs text-secondary">
+                  {routeTouristFetch === "loading"
+                    ? "Recherche des restaurants le long du tracé affiché…"
+                    : routeTouristFetch === "error"
+                      ? "Les suggestions restaurant n’ont pas pu être chargées pour ce trajet."
+                      : routeTouristFetch === "done" && liveTouristMapMarkers.length === 0
+                        ? `Aucun restaurant affiché avec note ≥ ${MAP_RESTAURANT_MIN_RATING} (ou trop peu proches du corridor / sans note).`
+                        : routeTouristFetch === "done" && liveTouristMapMarkers.length > 0
+                          ? `${liveTouristMapMarkers.length} restaurant(s) sur la carte (max. ${MAP_RESTAURANT_MAX_VISIBLE}, note ≥ ${MAP_RESTAURANT_MIN_RATING}). Dézoomez pour voir uniquement les pastilles cliquables.`
+                          : null}
+                </p>
+              ) : null}
             </div>
             {currentJourney.segments.length ? (
               <div className="mt-6">
@@ -2512,6 +3047,9 @@ export function JourneyWorkspace({ mapboxToken }: JourneyWorkspaceProps) {
                   <div className="flex flex-wrap items-center gap-3">
                     <Badge variant="muted">Option {index + 1}</Badge>
                     {planner.ecoModeEnabled ? <Badge variant="success">Eco mode</Badge> : null}
+                    {planner.touristModeEnabled ? (
+                      <Badge variant="muted">Mode touriste</Badge>
+                    ) : null}
                     {planner.namedComfortSettingId ? (
                       <Badge variant="accent">Comfort preset</Badge>
                     ) : null}

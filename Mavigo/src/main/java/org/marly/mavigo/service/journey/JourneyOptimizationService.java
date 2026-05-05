@@ -32,6 +32,9 @@ public class JourneyOptimizationService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(JourneyOptimizationService.class);
 
+    private static final double MAX_TASK_OPTIMIZATION_DURATION_RATIO = 3.0;
+    private static final long MAX_TASK_OPTIMIZATION_EXTRA_SECONDS = 45 * 60;
+
     private final JourneyPlanningService journeyPlanningService;
     private final JourneyRepository journeyRepository;
     private final UserTaskRepository userTaskRepository;
@@ -240,6 +243,15 @@ public class JourneyOptimizationService {
         List<Journey> baseJourneys = journeyPlanningService.planAndPersist(baseParams);
         long baseDuration = baseJourneys.isEmpty() ? totalDuration : getDurationSeconds(baseJourneys.get(0));
 
+        if (!isReasonableTaskDetour(totalDuration, baseDuration)) {
+            LOGGER.debug(
+                    "Task '{}' skipped: detour too large (total {}s vs base {}s)",
+                    task.title(),
+                    totalDuration,
+                    baseDuration);
+            return null;
+        }
+
         return new OptimizedJourneyResult(totalJourney,
                 List.of(new IncludedTaskInfo(
                         task.id(), task.title(), task.locationQuery(),
@@ -331,9 +343,19 @@ public class JourneyOptimizationService {
         return aggregated;
     }
 
-    /**
-     * Calcule la durée totale d'un trajet en secondes.
-     */
+    private static boolean isReasonableTaskDetour(long totalDurationSeconds, long baseDurationSeconds) {
+        if (baseDurationSeconds <= 0 || totalDurationSeconds <= baseDurationSeconds) {
+            return true;
+        }
+        long extra = totalDurationSeconds - baseDurationSeconds;
+        if (extra > MAX_TASK_OPTIMIZATION_EXTRA_SECONDS) {
+            return false;
+        }
+        double ratio = (double) totalDurationSeconds / (double) baseDurationSeconds;
+        return ratio <= MAX_TASK_OPTIMIZATION_DURATION_RATIO;
+    }
+
+    /** Durée totale du trajet en secondes. */
     private long getDurationSeconds(Journey journey) {
         if (journey.getPlannedDeparture() != null && journey.getPlannedArrival() != null) {
             return java.time.Duration.between(

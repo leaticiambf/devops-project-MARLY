@@ -1,7 +1,14 @@
 package org.marly.mavigo.exception;
 
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 
@@ -9,6 +16,25 @@ import jakarta.persistence.EntityNotFoundException;
 
 @ControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<Map<String, Object>> handleValidation(MethodArgumentNotValidException ex) {
+        List<String> errors = ex.getBindingResult().getFieldErrors().stream()
+                .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
+                .collect(Collectors.toList());
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("message", "Validation failed");
+        body.put("errors", errors);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<Map<String, String>> handleUnreadable(HttpMessageNotReadableException ex) {
+        Throwable cause = ex.getMostSpecificCause();
+        String msg = cause.getMessage() != null ? cause.getMessage() : ex.getMessage();
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(Map.of("message", msg != null ? msg : "Invalid request body"));
+    }
 
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<String> handleIllegalState(IllegalStateException ex) {
@@ -32,7 +58,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<String> handleGenericException(Exception ex) {
-        ex.printStackTrace(); // Ensure it's logged
+        ex.printStackTrace();
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body("Internal Server Error: " + ex.getMessage());
     }

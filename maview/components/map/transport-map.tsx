@@ -8,6 +8,7 @@ import {
   createBoundsFromCoordinates,
   DEMO_SEGMENTS,
   DEMO_STOPS,
+  distanceBetweenPointsMeters,
   fetchWalkingRoute,
   getSegmentLayerId,
   getSegmentLabelLayerId,
@@ -15,6 +16,7 @@ import {
   toSegmentFeatureCollection,
   type TransportSegment,
   type TransportStop,
+  nearestSegmentOnRoute,
   upsertSegmentOnMap,
 } from "@/components/map/map-utils";
 import { Button } from "@/components/ui/button";
@@ -35,6 +37,43 @@ type LocationStatus =
   | "denied"
   | "error";
 
+export type TouristMapRestaurant = {
+  id: string;
+  name: string;
+  coordinates: [number, number];
+  rating: number | null;
+  address: string | null;
+  websiteUrl?: string | null;
+};
+
+/** Zoom minimal Mapbox pour les cartouches complètes ; en dessous : pastilles seules (popup au clic). */
+const TOURIST_RESTAURANT_FULL_WIDGET_MIN_ZOOM = 13;
+
+function touristRestaurantPopupHtml(r: TouristMapRestaurant): string {
+  const ratingHtml =
+    r.rating != null
+      ? `<div style="margin-top:4px;font-size:11px;color:#115e59;font-weight:700;">Note ${r.rating.toFixed(1)} / 5</div>`
+      : "";
+  const addr = r.address?.trim();
+  const addrHtml = addr
+    ? `<small style="display:block;font-size:11px;color:#374151;margin-top:6px;line-height:1.35;">${escapeHtmlText(addr)}</small>`
+    : "";
+  const rawUrl = r.websiteUrl?.trim();
+  const safeUrl =
+    rawUrl && /^https?:\/\//i.test(rawUrl) ? rawUrl : null;
+  const linkHtml = safeUrl
+    ? `<a href="${escapeHtmlText(safeUrl)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;margin-top:8px;font-size:11px;color:#0d9488;font-weight:600;">Site web</a>`
+    : "";
+
+  return `<div style="color:#111827;font-family:Arial,sans-serif;line-height:1.35;max-width:280px;">
+          <strong style="display:block;font-size:11px;color:#0f766e;letter-spacing:0.2em;">RESTAURANT</strong>
+          <span style="display:block;font-size:13px;font-weight:800;color:#134e4a;margin-top:6px;">${escapeHtmlText(r.name)}</span>
+          ${ratingHtml}
+          ${addrHtml}
+          ${linkHtml}
+        </div>`;
+}
+
 type TransportMapProps = {
   mapboxToken: string | null;
   stops?: TransportStop[];
@@ -52,6 +91,8 @@ type TransportMapProps = {
   isRerouting?: boolean;
   /** Recentrage ponctuel (ex. clic sur un arrêt dans la liste du trajet). `id` doit changer à chaque demande. */
   flyToRequest?: { lng: number; lat: number; id: number } | null;
+  /** Restaurants proches du trajet (mode touriste), marqueurs distincts des tâches. */
+  touristRestaurants?: TouristMapRestaurant[] | null;
 };
 
 type GuidanceState = {
@@ -101,81 +142,6 @@ type DeviceOrientationEventWithIOSPermission = typeof DeviceOrientationEvent & {
   requestPermission?: () => Promise<"granted" | "denied">;
 };
 
-function toRad(value: number) {
-  return (value * Math.PI) / 180;
-}
-
-function distanceBetweenPointsMeters(a: [number, number], b: [number, number]) {
-  const avgLat = (a[1] + b[1]) / 2;
-  const lngScale = 111_320 * Math.cos(toRad(avgLat));
-  const latScale = 110_540;
-  return Math.hypot((a[0] - b[0]) * lngScale, (a[1] - b[1]) * latScale);
-}
-
-function pointToSegmentDistanceMeters(
-  point: [number, number],
-  start: [number, number],
-  end: [number, number],
-) {
-  const lngScale = 111_320 * Math.cos(toRad(point[1]));
-  const latScale = 110_540;
-
-  const px = point[0] * lngScale;
-  const py = point[1] * latScale;
-  const x1 = start[0] * lngScale;
-  const y1 = start[1] * latScale;
-  const x2 = end[0] * lngScale;
-  const y2 = end[1] * latScale;
-
-  const dx = x2 - x1;
-  const dy = y2 - y1;
-  const segLengthSq = dx * dx + dy * dy;
-  if (segLengthSq === 0) {
-    return Math.hypot(px - x1, py - y1);
-  }
-
-  const t = Math.max(
-    0,
-    Math.min(1, ((px - x1) * dx + (py - y1) * dy) / segLengthSq),
-  );
-  const projX = x1 + t * dx;
-  const projY = y1 + t * dy;
-  return Math.hypot(px - projX, py - projY);
-}
-
-function distanceToPolylineMeters(
-  point: [number, number],
-  lineCoordinates: [number, number][],
-) {
-  if (lineCoordinates.length < 2) {
-    return Infinity;
-  }
-
-  let best = Infinity;
-  for (let index = 0; index < lineCoordinates.length - 1; index += 1) {
-    const distance = pointToSegmentDistanceMeters(
-      point,
-      lineCoordinates[index],
-      lineCoordinates[index + 1],
-    );
-    if (distance < best) {
-      best = distance;
-    }
-  }
-  return best;
-}
-
-function getNearestSegment(point: [number, number], segments: TransportSegment[]) {
-  let nearest: { segment: TransportSegment; distanceMeters: number } | null = null;
-  for (const segment of segments) {
-    const distanceMeters = distanceToPolylineMeters(point, segment.coordinates);
-    if (!nearest || distanceMeters < nearest.distanceMeters) {
-      nearest = { segment, distanceMeters };
-    }
-  }
-  return nearest;
-}
-
 export function TransportMap({
   mapboxToken,
   stops: providedStops,
@@ -185,12 +151,15 @@ export function TransportMap({
   onRequestReroute,
   isRerouting = false,
   flyToRequest = null,
+  touristRestaurants = null,
 }: TransportMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const stopMarkersRef = useRef<mapboxgl.Marker[]>([]);
   const taskMarkersRef = useRef<mapboxgl.Marker[]>([]);
+  const touristRestaurantMarkersRef = useRef<mapboxgl.Marker[]>([]);
+  const touristZoomRafRef = useRef(0);
   const arrivalAddressMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const watchIdRef = useRef<number | null>(null);
   const isMapReadyRef = useRef(false);
@@ -240,8 +209,11 @@ export function TransportMap({
     if (arrivalAddressCoordinates) {
       coordinates.push(arrivalAddressCoordinates);
     }
+    for (const r of touristRestaurants ?? []) {
+      coordinates.push(r.coordinates);
+    }
     return createBoundsFromCoordinates(coordinates);
-  }, [arrivalAddressCoordinates, segments, stops]);
+  }, [arrivalAddressCoordinates, segments, stops, touristRestaurants]);
 
   useEffect(() => {
     if (!canResolveArrivalAddress || !mapboxToken) {
@@ -456,7 +428,6 @@ export function TransportMap({
       root.style.pointerEvents = "auto";
       root.style.filter = "drop-shadow(0 6px 14px rgba(2,6,23,0.55))";
 
-      // --- Bannière (haut) : fond ambre vif + icône + TÂCHE + titre + adresse ---
       const banner = document.createElement("div");
       banner.style.display = "flex";
       banner.style.flexDirection = "column";
@@ -526,7 +497,6 @@ export function TransportMap({
         banner.appendChild(addrEl);
       }
 
-      // --- Flèche pointant vers le pin ---
       const arrow = document.createElement("div");
       arrow.style.width = "0";
       arrow.style.height = "0";
@@ -535,7 +505,6 @@ export function TransportMap({
       arrow.style.borderTop = "8px solid #d97706";
       arrow.style.marginTop = "-1px";
 
-      // --- Pin au sol (cercle plein + halo pulsant) ---
       const pinWrap = document.createElement("div");
       pinWrap.style.position = "relative";
       pinWrap.style.width = "22px";
@@ -578,6 +547,168 @@ export function TransportMap({
         .addTo(map);
     });
   }, [mapboxToken, tasks]);
+
+  const addTouristRestaurantMarkers = useCallback(() => {
+    const map = mapRef.current;
+    if (!map) {
+      return;
+    }
+
+    const zoom = map.getZoom();
+    const showFullWidget = zoom >= TOURIST_RESTAURANT_FULL_WIDGET_MIN_ZOOM;
+
+    touristRestaurantMarkersRef.current.forEach((marker) => marker.remove());
+    touristRestaurantMarkersRef.current = (touristRestaurants ?? []).map((r) => {
+      const popup = new mapboxgl.Popup({
+        offset: showFullWidget ? 12 : 10,
+        closeButton: false,
+      }).setHTML(touristRestaurantPopupHtml(r));
+
+      if (!showFullWidget) {
+        const pin = document.createElement("button");
+        pin.type = "button";
+        pin.title = r.name;
+        pin.setAttribute("aria-label", `Restaurant : ${r.name}`);
+        pin.style.width = "22px";
+        pin.style.height = "22px";
+        pin.style.borderRadius = "999px";
+        pin.style.border = "2px solid #ffffff";
+        pin.style.background = "#14b8a6";
+        pin.style.cursor = "pointer";
+        pin.style.padding = "0";
+        pin.style.boxShadow =
+          "0 0 0 2px #0f7668, 0 2px 8px rgba(2,6,23,0.35)";
+        pin.style.flexShrink = "0";
+
+        return new mapboxgl.Marker({
+          element: pin,
+          anchor: "center",
+        })
+          .setLngLat(r.coordinates)
+          .setPopup(popup)
+          .addTo(map);
+      }
+
+      const root = document.createElement("div");
+      root.style.display = "flex";
+      root.style.flexDirection = "column";
+      root.style.alignItems = "center";
+      root.style.gap = "0";
+      root.style.pointerEvents = "auto";
+      root.style.filter = "drop-shadow(0 6px 14px rgba(2,6,23,0.5))";
+
+      const banner = document.createElement("div");
+      banner.style.display = "flex";
+      banner.style.flexDirection = "column";
+      banner.style.alignItems = "flex-start";
+      banner.style.gap = "3px";
+      banner.style.padding = "7px 11px 8px";
+      banner.style.borderRadius = "12px";
+      banner.style.border = "2px solid #5eead4";
+      banner.style.background =
+        "linear-gradient(180deg, #14b8a6 0%, #0d9488 100%)";
+      banner.style.boxShadow =
+        "0 6px 18px rgba(13,148,136,0.45), 0 0 0 3px rgba(255,255,255,0.15) inset";
+      banner.style.maxWidth = "min(92vw, 260px)";
+      banner.style.overflow = "hidden";
+      banner.style.color = "#042f2e";
+
+      const headerRow = document.createElement("div");
+      headerRow.style.display = "flex";
+      headerRow.style.alignItems = "center";
+      headerRow.style.gap = "6px";
+      headerRow.style.minWidth = "0";
+
+      const icon = document.createElement("span");
+      icon.setAttribute("aria-hidden", "true");
+      icon.textContent = "\uD83C\uDF7D";
+      icon.style.fontSize = "13px";
+      icon.style.lineHeight = "1";
+
+      const label = document.createElement("span");
+      label.textContent = "RESTAURANT";
+      label.style.flexShrink = "0";
+      label.style.fontSize = "9px";
+      label.style.fontWeight = "900";
+      label.style.letterSpacing = "0.2em";
+      label.style.color = "#022c22";
+
+      const titleEl = document.createElement("span");
+      const maxTitle = 32;
+      titleEl.textContent =
+        r.name.length > maxTitle ? `${r.name.slice(0, maxTitle)}…` : r.name;
+      titleEl.style.fontSize = "11px";
+      titleEl.style.fontWeight = "800";
+      titleEl.style.color = "#021716";
+      titleEl.style.overflow = "hidden";
+      titleEl.style.textOverflow = "ellipsis";
+      titleEl.style.whiteSpace = "nowrap";
+      titleEl.style.minWidth = "0";
+
+      headerRow.appendChild(icon);
+      headerRow.appendChild(label);
+      headerRow.appendChild(titleEl);
+      banner.appendChild(headerRow);
+
+      if (r.rating != null) {
+        const rate = document.createElement("div");
+        rate.textContent = `\u2605 ${r.rating.toFixed(1)}`;
+        rate.style.fontSize = "10px";
+        rate.style.fontWeight = "700";
+        rate.style.color = "#064e3b";
+        banner.appendChild(rate);
+      }
+
+      const arrow = document.createElement("div");
+      arrow.style.width = "0";
+      arrow.style.height = "0";
+      arrow.style.borderLeft = "7px solid transparent";
+      arrow.style.borderRight = "7px solid transparent";
+      arrow.style.borderTop = "8px solid #0f7668";
+      arrow.style.marginTop = "-1px";
+
+      const pinWrap = document.createElement("div");
+      pinWrap.style.position = "relative";
+      pinWrap.style.width = "21px";
+      pinWrap.style.height = "21px";
+      pinWrap.style.display = "grid";
+      pinWrap.style.placeItems = "center";
+      pinWrap.style.marginTop = "2px";
+
+      const halo = document.createElement("div");
+      halo.style.position = "absolute";
+      halo.style.width = "21px";
+      halo.style.height = "21px";
+      halo.style.borderRadius = "999px";
+      halo.style.background = "rgba(45,212,191,0.5)";
+      halo.style.animation = "mv-task-pulse 1.8s ease-out infinite";
+
+      const dot = document.createElement("div");
+      dot.style.position = "relative";
+      dot.style.width = "13px";
+      dot.style.height = "13px";
+      dot.style.borderRadius = "999px";
+      dot.style.background = "#14b8a6";
+      dot.style.border = "3px solid #ffffff";
+      dot.style.boxShadow =
+        "0 0 0 2px #0f7668, 0 4px 10px rgba(2,6,23,0.45)";
+
+      pinWrap.appendChild(halo);
+      pinWrap.appendChild(dot);
+
+      root.appendChild(banner);
+      root.appendChild(arrow);
+      root.appendChild(pinWrap);
+
+      return new mapboxgl.Marker({
+        element: root,
+        anchor: "bottom",
+      })
+        .setLngLat(r.coordinates)
+        .setPopup(popup)
+        .addTo(map);
+    });
+  }, [touristRestaurants]);
 
   const upsertArrivalAddressMarker = useCallback(() => {
     const map = mapRef.current;
@@ -886,13 +1017,13 @@ export function TransportMap({
         return;
       }
 
-      const nearest = getNearestSegment(position, segments);
+      const nearest = nearestSegmentOnRoute(position, segments);
       if (!nearest) {
         return;
       }
 
       const onRoute = nearest.distanceMeters <= ON_ROUTE_THRESHOLD_METERS;
-      const nearestWalking = getNearestSegment(
+      const nearestWalking = nearestSegmentOnRoute(
         position,
         segments.filter((segment) => segment.transportType === "walking"),
       );
@@ -1177,6 +1308,7 @@ export function TransportMap({
       upsertRouteSegments();
       addStopMarkers();
       addTaskMarkers();
+      addTouristRestaurantMarkers();
       upsertArrivalAddressMarker();
       upsertLastMileToArrivalSegment();
       fitMapToTransportData();
@@ -1201,6 +1333,8 @@ export function TransportMap({
       stopMarkersRef.current = [];
       taskMarkersRef.current.forEach((marker) => marker.remove());
       taskMarkersRef.current = [];
+      touristRestaurantMarkersRef.current.forEach((marker) => marker.remove());
+      touristRestaurantMarkersRef.current = [];
       userMarkerRef.current?.remove();
       userMarkerRef.current = null;
       arrivalAddressMarkerRef.current?.remove();
@@ -1229,6 +1363,42 @@ export function TransportMap({
       essential: true,
     });
   }, [flyToRequest, mapReady]);
+
+  useEffect(() => {
+    if (!mapReady || !isMapReadyRef.current || !mapRef.current) {
+      return;
+    }
+    addTouristRestaurantMarkers();
+  }, [addTouristRestaurantMarkers, mapReady, touristRestaurants]);
+
+  useEffect(() => {
+    if (!mapReady || !mapRef.current) {
+      return;
+    }
+    const map = mapRef.current;
+
+    const scheduleRefresh = () => {
+      if (touristZoomRafRef.current) {
+        cancelAnimationFrame(touristZoomRafRef.current);
+      }
+      touristZoomRafRef.current = window.requestAnimationFrame(() => {
+        touristZoomRafRef.current = 0;
+        addTouristRestaurantMarkers();
+      });
+    };
+
+    map.on("zoom", scheduleRefresh);
+    map.on("zoomend", scheduleRefresh);
+
+    return () => {
+      map.off("zoom", scheduleRefresh);
+      map.off("zoomend", scheduleRefresh);
+      if (touristZoomRafRef.current) {
+        cancelAnimationFrame(touristZoomRafRef.current);
+        touristZoomRafRef.current = 0;
+      }
+    };
+  }, [mapReady, addTouristRestaurantMarkers]);
 
   useEffect(() => {
     if (!isMapReadyRef.current) {

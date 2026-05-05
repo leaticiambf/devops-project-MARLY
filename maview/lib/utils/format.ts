@@ -72,6 +72,22 @@ export function getLocalDateTimeInputValue(date = new Date()) {
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
+export function isUuidString(value: string): boolean {
+  const t = value.trim();
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(t);
+}
+
+export function normalizeLocalDateTimeForApi(value: string): string {
+  const t = value.trim();
+  if (!t) {
+    return t;
+  }
+  if (t.includes("T")) {
+    return t;
+  }
+  return t.replace(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}(?::\d{2})?)$/, "$1T$2");
+}
+
 export function getTomorrowLocalDateTimeValue(hours = 8, minutes = 0) {
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);

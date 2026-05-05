@@ -24,6 +24,7 @@ import org.marly.mavigo.models.journey.Journey;
 import org.marly.mavigo.models.journey.JourneySegment;
 import org.marly.mavigo.models.journey.JourneyStatus;
 import org.marly.mavigo.models.journey.SegmentType;
+import org.marly.mavigo.models.journey.TransitMode;
 import org.marly.mavigo.models.shared.GeoPoint;
 import org.marly.mavigo.models.stoparea.StopArea;
 import org.marly.mavigo.models.user.User;
@@ -117,6 +118,56 @@ class JourneyPlanningServiceImplTest {
                 assertFalse(result.isEmpty());
                 assertEquals(1, result.size());
                 verify(journeyRepository, times(1)).save(any(Journey.class));
+        }
+
+        @Test
+        @DisplayName("planAndPersist devrait retourner un trajet marche si PRIM échoue sur deux coordonnées proches")
+        void planAndPersist_shouldFallbackToWalkingForShortCoordinateJourney() {
+                // Given
+                StopArea closeOrigin = new StopArea(
+                                "2.215807;48.902667",
+                                "Allée de la Gare, Nanterre",
+                                new GeoPoint(48.902667, 2.215807));
+                StopArea closeDestination = new StopArea(
+                                "2.215220;48.901120",
+                                "33 boulevard Provinces Françaises, Nanterre",
+                                new GeoPoint(48.901120, 2.215220));
+                JourneyPlanningParameters parameters = new JourneyPlanningParameters(
+                                testUser.getId(),
+                                "48.902667, 2.215807",
+                                "48.901120, 2.215220",
+                                LocalDateTime.of(2026, 5, 5, 14, 0),
+                                JourneyPreferences.disabled(),
+                                false,
+                                false);
+
+                when(stopAreaService.findOrCreateByQuery(parameters.originQuery())).thenReturn(closeOrigin);
+                when(stopAreaService.findOrCreateByQuery(parameters.destinationQuery())).thenReturn(closeDestination);
+                when(userRepository.findById(testUser.getId())).thenReturn(Optional.of(testUser));
+                when(primJourneyRequestFactory.create(any(JourneyPlanningContext.class)))
+                                .thenReturn(new PrimJourneyRequest(
+                                                closeOrigin.getExternalId(),
+                                                closeDestination.getExternalId(),
+                                                parameters.departureDateTime()));
+                when(primApiClient.calculateJourneyPlans(any(PrimJourneyRequest.class)))
+                                .thenThrow(new PrimApiException("No journey options match"));
+                when(journeyRepository.save(any(Journey.class))).thenAnswer(i -> i.getArguments()[0]);
+
+                // When
+                List<Journey> result = service.planAndPersist(parameters);
+
+                // Then
+                assertEquals(1, result.size());
+                Journey fallback = result.get(0);
+                assertEquals("direct-walking-fallback", fallback.getPrimItineraryId());
+                assertEquals(1, fallback.getSegments().size());
+                JourneySegment segment = fallback.getSegments().get(0);
+                assertEquals(SegmentType.WALKING, segment.getSegmentType());
+                assertEquals(TransitMode.WALK, segment.getTransitMode());
+                assertEquals(2, segment.getPoints().size());
+                assertTrue(segment.getDistanceMeters() > 0);
+                verify(journeyAssembler, never()).assemble(any(), any(), any(), any(), any());
+                verify(journeyRepository).save(any(Journey.class));
         }
 
         @Test
