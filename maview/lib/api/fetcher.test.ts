@@ -41,7 +41,7 @@ describe("apiRequest", () => {
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/example",
       expect.objectContaining({
-        credentials: "same-origin",
+        credentials: "omit",
         cache: "no-store",
         headers: expect.any(Headers),
       }),

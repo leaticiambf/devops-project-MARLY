@@ -92,11 +92,41 @@ public class BddTestConfiguration {
                 return results;
             }
 
+            private StationData findStationByStopAreaId(String stopAreaId) {
+                if (stopAreaId == null) {
+                    return null;
+                }
+                for (StationData station : STATIONS.values()) {
+                    if (station.id.equals(stopAreaId)) {
+                        return station;
+                    }
+                }
+                return null;
+            }
+
+            private int estimateJourneyDurationSeconds(PrimJourneyRequest request) {
+                StationData from = findStationByStopAreaId(request.getFromStopAreaId());
+                StationData to = findStationByStopAreaId(request.getToStopAreaId());
+                if (from == null || to == null) {
+                    return 8 * 3600;
+                }
+                double meters = calculateDistance(from.lat, from.lon, to.lat, to.lon);
+                int seconds = (int) Math.max(240, Math.round(meters / 7.0));
+                return Math.min(seconds, 8 * 3600);
+            }
+
             @Override
             public List<PrimJourneyPlanDto> calculateJourneyPlans(PrimJourneyRequest request) {
-                // Return a mock journey plan
+                int durationSeconds = estimateJourneyDurationSeconds(request);
                 OffsetDateTime now = OffsetDateTime.now();
-                OffsetDateTime arrival = now.plusMinutes(45);
+                OffsetDateTime arrival = now.plusSeconds(durationSeconds);
+
+                StationData from = findStationByStopAreaId(request.getFromStopAreaId());
+                StationData to = findStationByStopAreaId(request.getToStopAreaId());
+                double originLat = from != null ? from.lat : 48.8566;
+                double originLon = from != null ? from.lon : 2.3522;
+                double destLat = to != null ? to.lat : originLat;
+                double destLon = to != null ? to.lon : originLon;
 
                 PrimJourneyPlanDto.LegDto leg = new PrimJourneyPlanDto.LegDto(
                         1,
@@ -109,15 +139,15 @@ public class BddTestConfiguration {
                         "RATP",
                         now,
                         arrival,
-                        2700,
+                        durationSeconds,
                         request.getFromStopAreaId(),
                         "Origin",
-                        48.8443,
-                        2.3730,
+                        originLat,
+                        originLon,
                         request.getToStopAreaId(),
                         "Destination",
-                        48.8584,
-                        2.3470,
+                        destLat,
+                        destLon,
                         null,
                         true,
                         List.of());
@@ -126,7 +156,7 @@ public class BddTestConfiguration {
                         "journey-test-1",
                         now,
                         arrival,
-                        2700,
+                        durationSeconds,
                         0,
                         List.of(leg));
 
