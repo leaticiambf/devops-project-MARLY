@@ -6,6 +6,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { useSearchParams } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,7 @@ import {
   pickRestaurantsForMap,
   suggestionStableKey,
 } from "@/features/journey/tourist-route-sampling";
+import { EXPLORE_CURRENT_LOCATION_LABEL } from "@/features/tourism/tourism-workspace";
 import { googleTasksApi } from "@/lib/api/google";
 import { journeysApi } from "@/lib/api/journeys";
 import { usersApi } from "@/lib/api/users";
@@ -49,6 +51,8 @@ import {
   getLocalDateTimeInputValue,
   getTomorrowDateString,
   getTomorrowLocalDateTimeValue,
+  isUuidString,
+  normalizeLocalDateTimeForApi,
 } from "@/lib/utils/format";
 import {
   forwardGeocodeMapbox,
@@ -60,6 +64,13 @@ import { useToast } from "@/providers/toast-provider";
 type PlannerState = {
   originQuery: string;
   destinationQuery: string;
+  originApiQuery: string;
+  destinationApiQuery: string;
+  originLatitude: number | null;
+  originLongitude: number | null;
+  destinationLatitude: number | null;
+  destinationLongitude: number | null;
+  source: "EXPLORE_RESTAURANT" | null;
   departureTime: string;
   intermediateQuery: string;
   intermediateDepartureTime: string;
@@ -70,11 +81,84 @@ type PlannerState = {
   touristModeEnabled: boolean;
 };
 
+function formatCoordPairForApi(lat: number, lng: number) {
+  return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+}
+
+type ExploreRestaurantPlannerParse =
+  | { ok: false; error: "missing_destination" | "missing_origin" }
+  | { ok: true; overrides: Partial<PlannerState> };
+
+function parseExploreRestaurantPlannerSearchParams(
+  searchParams: URLSearchParams,
+): ExploreRestaurantPlannerParse {
+  const destinationFromParams = searchParams.get("destination")?.trim() ?? "";
+  const destinationLat = Number(searchParams.get("destinationLat"));
+  const destinationLng = Number(searchParams.get("destinationLng"));
+  const hasDestinationCoordinates =
+    Number.isFinite(destinationLat) && Number.isFinite(destinationLng);
+  const coordinateDestinationQuery = hasDestinationCoordinates
+    ? formatCoordPairForApi(destinationLat, destinationLng)
+    : "";
+  const destinationQuery =
+    destinationFromParams || coordinateDestinationQuery;
+
+  const originAddressParam = searchParams.get("originAddress")?.trim() ?? "";
+  const originLat = Number(searchParams.get("originLat"));
+  const originLng = Number(searchParams.get("originLng"));
+  const hasOriginCoordinates =
+    Number.isFinite(originLat) && Number.isFinite(originLng);
+  const coordinateOriginQuery = hasOriginCoordinates
+    ? formatCoordPairForApi(originLat, originLng)
+    : "";
+
+  const originQuery =
+    originAddressParam && originAddressParam !== EXPLORE_CURRENT_LOCATION_LABEL
+      ? originAddressParam
+      : coordinateOriginQuery;
+
+  if (!destinationQuery) {
+    return { ok: false, error: "missing_destination" };
+  }
+  if (!originQuery) {
+    return { ok: false, error: "missing_origin" };
+  }
+
+  return {
+    ok: true,
+    overrides: {
+      originQuery,
+      destinationQuery,
+      originApiQuery: coordinateOriginQuery,
+      destinationApiQuery: coordinateDestinationQuery,
+      originLatitude: hasOriginCoordinates ? originLat : null,
+      originLongitude: hasOriginCoordinates ? originLng : null,
+      destinationLatitude: hasDestinationCoordinates ? destinationLat : null,
+      destinationLongitude: hasDestinationCoordinates ? destinationLng : null,
+      source: "EXPLORE_RESTAURANT",
+      departureTime: getLocalDateTimeInputValue(),
+      intermediateQuery: "",
+      intermediateDepartureTime: "",
+      includeTaskOptimization: false,
+      ecoModeEnabled: false,
+      namedComfortSettingId: "",
+    },
+  };
+}
+
 type PlanningOutcome = {
   journeys: JourneyResponse[];
   fallbackUsed: boolean;
   taskOptimizationAttempted: boolean;
 };
+
+function optionalComfortPresetUuid(value: string): string | undefined {
+  const trimmed = value.trim();
+  if (!trimmed || !isUuidString(trimmed)) {
+    return undefined;
+  }
+  return trimmed;
+}
 
 type JourneyTaskMarker = {
   id: string;
@@ -83,7 +167,7 @@ type JourneyTaskMarker = {
   addressHint?: string | null;
 };
 
-async function readBrowserLocation(): Promise<{
+async function readBrowserLocation(options?: PositionOptions): Promise<{
   latitude: number;
   longitude: number;
 } | null> {
@@ -98,7 +182,7 @@ async function readBrowserLocation(): Promise<{
           longitude: position.coords.longitude,
         }),
       () => resolve(null),
-      { enableHighAccuracy: false, timeout: 2_500, maximumAge: 300_000 },
+      options ?? { enableHighAccuracy: false, timeout: 2_500, maximumAge: 300_000 },
     );
   });
 }
@@ -743,7 +827,7 @@ function buildTaskWalkingSegments(
   return result;
 }
 
-const ACTIVE_JOURNEY_STORAGE_KEY = "maview-active-journey";
+const ACTIVE_JOURNEY_STORAGE_KEY = "mavigo-active-journey";
 const TOURIST_MODE_STORAGE_KEY = "maview-tourist-mode-enabled";
 const ROUTE_TOURIST_SUGGESTIONS_STORAGE_KEY_PREFIX =
   "maview-route-tourist-suggestions:";
@@ -1167,12 +1251,22 @@ async function completeIncludedGoogleTasks(
 
 export function JourneyWorkspace({ mapboxToken }: JourneyWorkspaceProps) {
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
+  const exploreRestaurantSearchKey = searchParams.toString();
+  const isExploreRestaurantDeeplink = searchParams.get("exploreRestaurant") === "1";
   const { user, token } = useAuth();
   const { toast } = useToast();
 
   const [planner, setPlanner] = useState<PlannerState>({
     originQuery: "",
     destinationQuery: "",
+    originApiQuery: "",
+    destinationApiQuery: "",
+    originLatitude: null,
+    originLongitude: null,
+    destinationLatitude: null,
+    destinationLongitude: null,
+    source: null,
     departureTime: getLocalDateTimeInputValue(),
     intermediateQuery: "",
     intermediateDepartureTime: "",
@@ -1185,6 +1279,7 @@ export function JourneyWorkspace({ mapboxToken }: JourneyWorkspaceProps) {
   const [results, setResults] = useState<JourneyResponse[]>([]);
   const [currentJourney, setCurrentJourney] = useState<JourneyResponse | null>(null);
   const [journeyMessage, setJourneyMessage] = useState<string | null>(null);
+  const exploreRestaurantDeeplinkProcessedKeyRef = useRef("");
   const liveJourneyMapRef = useRef<HTMLDivElement>(null);
   const [journeyMapFlyTo, setJourneyMapFlyTo] = useState<{
     lng: number;
@@ -1218,9 +1313,12 @@ export function JourneyWorkspace({ mapboxToken }: JourneyWorkspaceProps) {
   }, []);
 
   useEffect(() => {
+    if (isExploreRestaurantDeeplink) {
+      return;
+    }
     const restored = restoreActiveJourney();
     if (restored) setCurrentJourney(restored);
-  }, []);
+  }, [isExploreRestaurantDeeplink]);
 
   useEffect(() => {
     const restored = restoreTouristModeEnabled();
@@ -1256,7 +1354,9 @@ export function JourneyWorkspace({ mapboxToken }: JourneyWorkspaceProps) {
     queryKey: ["journey-suggestions", user?.userId, getTomorrowDateString()],
     queryFn: () =>
       googleTasksApi.listSuggestions(user!.userId, getTomorrowDateString(), token!),
-    enabled: Boolean(user?.userId && token && googleLinked),
+    enabled: Boolean(
+      user?.userId && token && googleLinked && !isExploreRestaurantDeeplink,
+    ),
   });
 
   const linesQuery = useQuery({
@@ -1280,6 +1380,11 @@ export function JourneyWorkspace({ mapboxToken }: JourneyWorkspaceProps) {
       if (!user?.userId || !token) {
         throw new Error("An authenticated session is required.");
       }
+      if (!isUuidString(user.userId)) {
+        throw new Error(
+          "Identifiant utilisateur invalide dans la session. Déconnectez-vous puis reconnectez-vous.",
+        );
+      }
       const effectivePlanner = {
         ...planner,
         ...plannerOverrides,
@@ -1294,29 +1399,53 @@ export function JourneyWorkspace({ mapboxToken }: JourneyWorkspaceProps) {
       if (!effectivePlanner.departureTime) {
         throw new Error("Departure time is required.");
       }
+      const departureTimeForApi = normalizeLocalDateTimeForApi(effectivePlanner.departureTime);
+      if (!departureTimeForApi) {
+        throw new Error("Departure time is required.");
+      }
+
+      const viaTimeRaw = effectivePlanner.intermediateDepartureTime?.trim();
+      const intermediateDepartureTimeForApi =
+        viaTimeRaw && effectivePlanner.intermediateQuery.trim()
+          ? normalizeLocalDateTimeForApi(viaTimeRaw)
+          : undefined;
+
       if (
-        effectivePlanner.intermediateQuery &&
-        effectivePlanner.intermediateDepartureTime &&
-        effectivePlanner.intermediateDepartureTime <= effectivePlanner.departureTime
+        effectivePlanner.intermediateQuery.trim() &&
+        viaTimeRaw &&
+        intermediateDepartureTimeForApi &&
+        intermediateDepartureTimeForApi <= departureTimeForApi
       ) {
         throw new Error("Via departure must be after the first departure.");
       }
 
+      const comfortPresetId = optionalComfortPresetUuid(
+        effectivePlanner.namedComfortSettingId,
+      );
+
       const payload: JourneyPlanRequest = {
         journey: {
-          userId: user.userId,
-          originQuery: effectivePlanner.originQuery.trim(),
-          destinationQuery: effectivePlanner.destinationQuery.trim(),
-          departureTime: effectivePlanner.departureTime,
+          userId: user.userId.trim(),
+          originQuery:
+            effectivePlanner.originApiQuery.trim() ||
+            effectivePlanner.originQuery.trim(),
+          destinationQuery:
+            effectivePlanner.destinationApiQuery.trim() ||
+            effectivePlanner.destinationQuery.trim(),
+          originLatitude: effectivePlanner.originLatitude,
+          originLongitude: effectivePlanner.originLongitude,
+          destinationLatitude: effectivePlanner.destinationLatitude,
+          destinationLongitude: effectivePlanner.destinationLongitude,
+          source: effectivePlanner.source,
+          departureTime: departureTimeForApi,
           ecoModeEnabled: effectivePlanner.ecoModeEnabled,
           wheelchairAccessible: effectivePlanner.wheelchairAccessible,
           intermediateQuery: effectivePlanner.intermediateQuery.trim() || undefined,
-          intermediateDepartureTime:
-            effectivePlanner.intermediateDepartureTime || undefined,
+          intermediateDepartureTime: intermediateDepartureTimeForApi,
         },
         preferences: {
-          comfortMode: Boolean(effectivePlanner.namedComfortSettingId),
-          namedComfortSettingId: effectivePlanner.namedComfortSettingId || undefined,
+          comfortMode: Boolean(comfortPresetId),
+          namedComfortSettingId: comfortPresetId,
         },
       };
 
@@ -1353,6 +1482,26 @@ export function JourneyWorkspace({ mapboxToken }: JourneyWorkspaceProps) {
       };
     },
     onSuccess: ({ journeys, fallbackUsed, taskOptimizationAttempted }) => {
+      if (isExploreRestaurantDeeplink && journeys.length) {
+        const selected = journeys[0];
+        setCurrentJourney(selected);
+        setResults([]);
+        setDisruptionMode(null);
+        setJourneyMessage("Itinéraire vers le restaurant prêt sur la carte.");
+        toast({
+          title: "Itinéraire prêt",
+          description: "La première option a été affichée automatiquement sur la carte.",
+          variant: "success",
+        });
+        requestAnimationFrame(() => {
+          liveJourneyMapRef.current?.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+          });
+        });
+        return;
+      }
+
       setCurrentJourney(null);
       setResults(journeys);
       setDisruptionMode(null);
@@ -1707,8 +1856,6 @@ export function JourneyWorkspace({ mapboxToken }: JourneyWorkspaceProps) {
     })();
 
     return () => controller.abort();
-    // `taskWalkAnchorsKey` capture l'identité complète des ancres ; pas besoin
-    // de remettre `includedTaskAnchors` directement en dépendance.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskWalkAnchorsKey, mapboxToken]);
 
@@ -1945,7 +2092,6 @@ export function JourneyWorkspace({ mapboxToken }: JourneyWorkspaceProps) {
     })();
 
     return () => controller.abort();
-    // `liveJourneyMapDataRef` évite une dépendance sur l’objet carte (référence instable).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, planner.touristModeEnabled, currentJourney?.journeyId, liveTouristRouteGeometryKey]);
 
@@ -2053,6 +2199,22 @@ export function JourneyWorkspace({ mapboxToken }: JourneyWorkspaceProps) {
     setPlanner((current) => ({
       ...current,
       [key]: value,
+      ...(key === "originQuery"
+        ? {
+            originApiQuery: "",
+            originLatitude: null,
+            originLongitude: null,
+            source: null,
+          }
+        : {}),
+      ...(key === "destinationQuery"
+        ? {
+            destinationApiQuery: "",
+            destinationLatitude: null,
+            destinationLongitude: null,
+            source: null,
+          }
+        : {}),
     }));
   }
 
@@ -2073,6 +2235,13 @@ export function JourneyWorkspace({ mapboxToken }: JourneyWorkspaceProps) {
       ...current,
       originQuery: user.homeAddress ?? "",
       destinationQuery: locationQuery,
+      originApiQuery: "",
+      destinationApiQuery: "",
+      originLatitude: null,
+      originLongitude: null,
+      destinationLatitude: null,
+      destinationLongitude: null,
+      source: null,
       departureTime: getTomorrowLocalDateTimeValue(),
     }));
     toast({
@@ -2192,6 +2361,77 @@ export function JourneyWorkspace({ mapboxToken }: JourneyWorkspaceProps) {
       resolveAddressFromCoordinates,
     ],
   );
+
+  useEffect(() => {
+    if (!user?.userId || !token) {
+      return;
+    }
+
+    if (!isExploreRestaurantDeeplink) {
+      exploreRestaurantDeeplinkProcessedKeyRef.current = "";
+      return;
+    }
+
+    if (
+      exploreRestaurantDeeplinkProcessedKeyRef.current === exploreRestaurantSearchKey
+    ) {
+      return;
+    }
+
+    const consumeKey = () => {
+      exploreRestaurantDeeplinkProcessedKeyRef.current = exploreRestaurantSearchKey;
+    };
+
+    const parsed = parseExploreRestaurantPlannerSearchParams(searchParams);
+
+    if (!parsed.ok) {
+      consumeKey();
+      toast({
+        title:
+          parsed.error === "missing_destination" ? "Lien incomplet" : "Départ manquant",
+        description:
+          parsed.error === "missing_destination"
+            ? "Le lien depuis Explore ne contient pas de destination (restaurant)."
+            : "Relancez une recherche depuis Explore avec une adresse ou votre position, puis rouvrez la carte.",
+        variant: "error",
+      });
+      return;
+    }
+
+    const { overrides } = parsed;
+
+    consumeKey();
+
+    persistActiveJourney(null);
+    setCurrentJourney(null);
+    setResults([]);
+    setDisruptionMode(null);
+    setRouteTouristSuggestions([]);
+    setRouteTouristFetch("idle");
+    setJourneyMapFlyTo(null);
+
+    setPlanner((current) => ({
+      ...current,
+      ...overrides,
+    }));
+
+    setJourneyMessage("Depuis Explore : calcul automatique de l'itinéraire en cours...");
+
+    toast({
+      title: "Calcul lancé",
+      description:
+        "Départ et arrivée sont remplis depuis Explore, le trajet est en cours de calcul.",
+      variant: "success",
+    });
+
+    planJourney.mutate(overrides);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- planJourney/toast non stables
+  }, [
+    exploreRestaurantSearchKey,
+    isExploreRestaurantDeeplink,
+    token,
+    user?.userId,
+  ]);
 
   if (!user || !token) {
     return null;
@@ -2495,17 +2735,17 @@ export function JourneyWorkspace({ mapboxToken }: JourneyWorkspaceProps) {
               Follow your active route on the map
             </h2>
             <p className="mt-2 text-sm text-secondary">
-              Le marqueur bleu est votre position. Les segments colorés viennent du trajet. La
-              pastille violette « ARRIVÉE » (avec le libellé de destination) et le losange sous
-              l&apos;étiquette indiquent l&apos;adresse ou le lieu d&apos;arrivée saisi dans le
-              planificateur, une fois géocodé. Le petit point orange sur le trajet TC marque souvent
-              la fin du dernier segment transport ; ce n&apos;est pas forcément la même chose que
-              l&apos;adresse d&apos;arrivée saisie. Un tracé bleu en pointillés relie le dernier
-              arrêt bus, métro ou train à l&apos;arrivée. Les marqueurs ambre « TÂCHE » indiquent une
-              étape à faire, avec titre et adresse. Si la tâche a été intégrée dans l&apos;itinéraire
-              optimisé, elle est placée exactement sur le trajet ; sinon, un court tracé bleu relie le
-              trajet à la tâche. Avec le mode touriste du planificateur, les pastilles « RESTAURANT »
-              (sarcelle) signalent des établissements à proximité du tracé affiché (même flux que la page Explorer).
+              Le marqueur bleu est votre position. Les segments colorés viennent du trajet. La pastille
+              violette « ARRIVÉE » (avec le libellé de destination) et le losange sous l&apos;étiquette
+              indiquent l&apos;adresse ou le lieu d&apos;arrivée saisi dans le planificateur, une fois
+              géocodé. Le petit point orange sur le trajet TC marque souvent la fin du dernier segment
+              transport ; ce n&apos;est pas forcément la même chose que l&apos;adresse d&apos;arrivée
+              saisie. Un tracé bleu en pointillés relie le dernier arrêt bus, métro ou train à
+              l&apos;arrivée. Les marqueurs ambre « TÂCHE » indiquent une étape à faire, avec titre et
+              adresse. Si la tâche a été intégrée dans l&apos;itinéraire optimisé, elle est placée
+              exactement sur le trajet ; sinon, un court tracé bleu relie le trajet à la tâche. Avec le
+              mode touriste du planificateur, les pastilles « RESTAURANT » (sarcelle) signalent des
+              établissements à proximité du tracé affiché (même flux que la page Explorer).
             </p>
             {liveJourneyRouteTasksSummary ? (
               <div className="mt-4 rounded-xl border border-amber-400/40 bg-amber-400/10 px-4 py-3 text-sm">

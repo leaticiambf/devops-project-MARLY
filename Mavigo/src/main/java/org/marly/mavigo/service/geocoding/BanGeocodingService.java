@@ -37,6 +37,11 @@ public class BanGeocodingService implements GeocodingService {
             return null;
         }
 
+        GeoPoint coordinateQuery = parseCoordinateQuery(address);
+        if (coordinateQuery != null) {
+            return coordinateQuery;
+        }
+
         try {
             String encoded = URLEncoder.encode(address, StandardCharsets.UTF_8);
             String url = baseUrl + "/search/?q=" + encoded + "&limit=5&autocomplete=0";
@@ -67,6 +72,35 @@ public class BanGeocodingService implements GeocodingService {
             return null;
         } catch (Exception e) {
             LOGGER.error("Unexpected BAN error while geocoding '{}'", address, e);
+            return null;
+        }
+    }
+
+    private GeoPoint parseCoordinateQuery(String query) {
+        String trimmed = query.trim();
+        String separator = trimmed.contains(";") ? ";" : trimmed.contains(",") ? "," : null;
+        if (separator == null) {
+            return null;
+        }
+
+        String[] parts = trimmed.split(separator);
+        if (parts.length != 2) {
+            return null;
+        }
+
+        try {
+            double first = Double.parseDouble(parts[0].trim());
+            double second = Double.parseDouble(parts[1].trim());
+
+            double latitude = ",".equals(separator) ? first : second;
+            double longitude = ",".equals(separator) ? second : first;
+            if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+                return null;
+            }
+
+            LOGGER.info("Using coordinate query '{}' as {}, {}", query, latitude, longitude);
+            return new GeoPoint(latitude, longitude);
+        } catch (NumberFormatException e) {
             return null;
         }
     }

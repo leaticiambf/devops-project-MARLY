@@ -82,6 +82,11 @@ export type JourneyPlanRequest = {
     userId: string;
     originQuery: string;
     destinationQuery: string;
+    originLatitude?: number | null;
+    originLongitude?: number | null;
+    destinationLatitude?: number | null;
+    destinationLongitude?: number | null;
+    source?: string | null;
     departureTime: string;
     ecoModeEnabled?: boolean;
     wheelchairAccessible?: boolean;

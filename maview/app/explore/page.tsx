@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { AuthGate } from "@/components/auth/auth-gate";
 import { TourismWorkspace } from "@/features/tourism/tourism-workspace";
+import { getMapboxToken } from "@/lib/config/env";
 
 export const metadata: Metadata = {
   title: "Explore Paris",
@@ -10,9 +11,11 @@ export const metadata: Metadata = {
 };
 
 export default function ExplorePage() {
+  const mapboxToken = getMapboxToken();
+
   return (
     <AuthGate>
-      <TourismWorkspace />
+      <TourismWorkspace mapboxToken={mapboxToken} />
     </AuthGate>
   );
 }
