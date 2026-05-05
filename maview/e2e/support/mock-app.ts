@@ -19,6 +19,9 @@ type MockOptions = {
   ecoDashboard?: EcoDashboard;
 };
 
+/** Identifiant utilisateur conforme UUID (exigé par le planner avant tout appel API). */
+export const E2E_MOCK_USER_ID = "11111111-1111-4111-8111-111111111111";
+
 export type MockState = {
   user: User;
   planBodies: Array<Record<string, unknown>>;
@@ -34,7 +37,7 @@ function json(route: Route, body: unknown, status = 200) {
 
 function buildUser(overrides: Partial<User> = {}): User {
   return {
-    userId: "user-123",
+    userId: E2E_MOCK_USER_ID,
     externalId: null,
     email: "jane@example.com",
     displayName: "Jane Doe",
@@ -55,7 +58,7 @@ function buildJourney(
 ): JourneyResponse {
   const base: JourneyResponse = {
     journeyId,
-    userId: "user-123",
+    userId: E2E_MOCK_USER_ID,
     originLabel: "Gare de Lyon",
     destinationLabel: "Chatelet",
     plannedDeparture: "2026-03-26T08:00:00.000Z",
@@ -169,7 +172,7 @@ function buildEcoDashboard(): EcoDashboard {
   };
 }
 
-export async function seedSession(page: Page, userId = "user-123", token = "jwt-token") {
+export async function seedSession(page: Page, userId = E2E_MOCK_USER_ID, token = "jwt-token") {
   await page.addInitScript(
     ([sessionUserId, sessionToken]) => {
       window.localStorage.setItem("mavigo_user_id", sessionUserId);
@@ -179,7 +182,7 @@ export async function seedSession(page: Page, userId = "user-123", token = "jwt-
   );
 }
 
-export async function expectStoredSession(page: Page, userId = "user-123") {
+export async function expectStoredSession(page: Page, userId = E2E_MOCK_USER_ID) {
   await expect
     .poll(async () =>
       page.evaluate(() => ({
