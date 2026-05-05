@@ -29,8 +29,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public class DefaultTourismSuggestionService implements TourismSuggestionService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(DefaultTourismSuggestionService.class);
-    private static final Duration YELP_CONNECT_TIMEOUT = Duration.ofSeconds(5);
-    private static final Duration YELP_READ_TIMEOUT = Duration.ofSeconds(30);
+    private static final Duration HTTP_CONNECT_TIMEOUT = Duration.ofSeconds(5);
+    private static final Duration HTTP_READ_TIMEOUT = Duration.ofSeconds(8);
 
     private final RestTemplate restTemplate;
     private final String yelpBaseUrl;
@@ -41,8 +41,8 @@ public class DefaultTourismSuggestionService implements TourismSuggestionService
             @Value("${tourism.yelp.base-url:https://api.yelp.com/v3}") String yelpBaseUrl,
             @Value("${tourism.yelp.api-key:}") String yelpApiKey) {
         this.restTemplate = restTemplateBuilder
-                .setConnectTimeout(YELP_CONNECT_TIMEOUT)
-                .setReadTimeout(YELP_READ_TIMEOUT)
+                .connectTimeout(HTTP_CONNECT_TIMEOUT)
+                .readTimeout(HTTP_READ_TIMEOUT)
                 .build();
         this.yelpBaseUrl = yelpBaseUrl;
         this.yelpApiKey = yelpApiKey;
@@ -50,50 +50,54 @@ public class DefaultTourismSuggestionService implements TourismSuggestionService
 
     @Override
     public List<TourismSuggestion> findTopRatedRestaurantsNearby(NearbyRestaurantSearch search) {
-        if (!hasText(yelpApiKey)) {
-            LOGGER.info("Yelp API key is missing, returning curated local recommendations");
-            return curatedSuggestions(search);
-        }
+        if (hasText(yelpApiKey)) {
+            URI uri = UriComponentsBuilder.fromUriString(yelpBaseUrl + "/businesses/search")
+                    .queryParam("latitude", search.latitude())
+                    .queryParam("longitude", search.longitude())
+                    .queryParam("categories", "restaurants")
+                    .queryParam("radius", search.radiusMeters())
+                    .queryParam("limit", search.limit())
+                    .queryParam("sort_by", "best_match")
+                    .build(true)
+                    .toUri();
 
-        URI uri = UriComponentsBuilder.fromHttpUrl(yelpBaseUrl + "/businesses/search")
-                .queryParam("latitude", search.latitude())
-                .queryParam("longitude", search.longitude())
-                .queryParam("categories", "restaurants")
-                .queryParam("radius", search.radiusMeters())
-                .queryParam("limit", search.limit())
-                .queryParam("sort_by", "best_match")
-                .build(true)
-                .toUri();
+            HttpHeaders headers = new HttpHeaders();
+            headers.setBearerAuth(yelpApiKey);
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setBearerAuth(yelpApiKey);
+            try {
+                ResponseEntity<YelpSearchResponse> response = restTemplate.exchange(
+                        uri,
+                        HttpMethod.GET,
+                        new HttpEntity<>(headers),
+                        YelpSearchResponse.class);
 
-        try {
-            ResponseEntity<YelpSearchResponse> response = restTemplate.exchange(
-                    uri,
-                    HttpMethod.GET,
-                    new HttpEntity<>(headers),
-                    YelpSearchResponse.class);
+                YelpSearchResponse body = response.getBody();
+                if (body == null || body.businesses == null) {
+                    return curatedSuggestions(search);
+                }
 
-            YelpSearchResponse body = response.getBody();
-            if (body == null || body.businesses == null) {
-                return List.of();
+                List<TourismSuggestion> yelpSuggestions = body.businesses.stream()
+                        .filter(business -> business != null && hasText(business.id) && hasText(business.name))
+                        .map(this::mapYelpSuggestion)
+                        .sorted(Comparator
+                                .comparing(TourismSuggestion::rating, Comparator.nullsLast(Comparator.reverseOrder()))
+                                .thenComparing(TourismSuggestion::reviewCount,
+                                        Comparator.nullsLast(Comparator.reverseOrder())))
+                        .limit(search.limit())
+                        .toList();
+                if (!yelpSuggestions.isEmpty()) {
+                    return yelpSuggestions;
+                }
+                return curatedSuggestions(search);
+            } catch (RestClientException exception) {
+                LOGGER.warn("Yelp nearby restaurant search failed: {}. Returning curated local recommendations.",
+                        exception.getMessage());
+                return curatedSuggestions(search);
             }
-
-            return body.businesses.stream()
-                    .filter(business -> business != null && hasText(business.id) && hasText(business.name))
-                    .map(this::mapYelpSuggestion)
-                    .sorted(Comparator
-                            .comparing(TourismSuggestion::rating, Comparator.nullsLast(Comparator.reverseOrder()))
-                            .thenComparing(TourismSuggestion::reviewCount,
-                                    Comparator.nullsLast(Comparator.reverseOrder())))
-                    .limit(search.limit())
-                    .toList();
-        } catch (RestClientException exception) {
-            LOGGER.warn("Yelp nearby restaurant search failed: {}. Returning curated local recommendations.",
-                    exception.getMessage());
-            return curatedSuggestions(search);
         }
+
+        LOGGER.info("No Yelp API key configured (tourism.yelp.api-key), returning curated local recommendations");
+        return curatedSuggestions(search);
     }
 
     private TourismSuggestion mapYelpSuggestion(YelpBusiness business) {

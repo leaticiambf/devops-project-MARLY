@@ -152,6 +152,108 @@ export function createBoundsFromCoordinates(coordinates: [number, number][]) {
   ] as [[number, number], [number, number]];
 }
 
+function toRad(value: number) {
+  return (value * Math.PI) / 180;
+}
+
+export function distanceBetweenPointsMeters(a: [number, number], b: [number, number]) {
+  const avgLat = (a[1] + b[1]) / 2;
+  const lngScale = 111_320 * Math.cos(toRad(avgLat));
+  const latScale = 110_540;
+  return Math.hypot((a[0] - b[0]) * lngScale, (a[1] - b[1]) * latScale);
+}
+
+function pointToSegmentDistanceMeters(
+  point: [number, number],
+  start: [number, number],
+  end: [number, number],
+): number {
+  const lngScale = 111_320 * Math.cos(toRad(point[1]));
+  const latScale = 110_540;
+
+  const px = point[0] * lngScale;
+  const py = point[1] * latScale;
+  const x1 = start[0] * lngScale;
+  const y1 = start[1] * latScale;
+  const x2 = end[0] * lngScale;
+  const y2 = end[1] * latScale;
+
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const segLengthSq = dx * dx + dy * dy;
+  if (segLengthSq === 0) {
+    return Math.hypot(px - x1, py - y1);
+  }
+
+  const t = Math.max(
+    0,
+    Math.min(1, ((px - x1) * dx + (py - y1) * dy) / segLengthSq),
+  );
+  const projX = x1 + t * dx;
+  const projY = y1 + t * dy;
+  return Math.hypot(px - projX, py - projY);
+}
+
+export function distanceToPolylineMeters(
+  point: [number, number],
+  lineCoordinates: [number, number][],
+): number {
+  if (!lineCoordinates.length) {
+    return Infinity;
+  }
+  if (lineCoordinates.length === 1) {
+    return distanceBetweenPointsMeters(point, lineCoordinates[0]!);
+  }
+
+  let best = Infinity;
+  for (let index = 0; index < lineCoordinates.length - 1; index += 1) {
+    const segmentDistance = pointToSegmentDistanceMeters(
+      point,
+      lineCoordinates[index]!,
+      lineCoordinates[index + 1]!,
+    );
+    if (segmentDistance < best) {
+      best = segmentDistance;
+    }
+  }
+  return best;
+}
+
+export function nearestSegmentOnRoute(point: [number, number], segments: TransportSegment[]) {
+  let nearest: { segment: TransportSegment; distanceMeters: number } | null = null;
+  for (const segment of segments) {
+    const distanceMeters = distanceToPolylineMeters(point, segment.coordinates);
+    if (!nearest || distanceMeters < nearest.distanceMeters) {
+      nearest = { segment, distanceMeters };
+    }
+  }
+  return nearest;
+}
+
+const COORD_NEAR_EPS = 1e-6;
+
+export function concatTransportSegmentPolylines(segments: TransportSegment[]): [number, number][] {
+  const out: [number, number][] = [];
+
+  function same(a: [number, number], b: [number, number]) {
+    return (
+      Math.abs(a[0] - b[0]) < COORD_NEAR_EPS &&
+      Math.abs(a[1] - b[1]) < COORD_NEAR_EPS
+    );
+  }
+
+  for (const segment of segments) {
+    for (const coordinate of segment.coordinates) {
+      const last = out[out.length - 1];
+      if (last && same(last, coordinate)) {
+        continue;
+      }
+      out.push(coordinate);
+    }
+  }
+  return out;
+}
+
 type DirectionsApiResponse = {
   routes?: Array<{
     geometry?: { coordinates: [number, number][] };
