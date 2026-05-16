@@ -5,6 +5,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.2.0] - 2026-05-04
+
+### Added
+- Interactive transport map experience in the Next.js frontend.
+- Dedicated transport map page and workspace.
+- Mapbox-based transport map rendering with reusable map utilities and legend components.
+- Reverse geocoding support for map interactions.
+- Journey task waypoints displayed on the route map and in the journey panel.
+
+### Changed
+- Improved journey workspace map behavior and route presentation.
+- Added map-related frontend dependencies and page coverage.
+- Updated README badges and project visibility metadata.
+
+### Fixed
+- Improved map availability error handling and user feedback.
+- Allowed SonarQube analysis to continue on error in CI.
+
+## [v1.1.0] - 2026-04-22
+
+### Added
+- Tourist mode for restaurant suggestions near a journey.
+- Yelp-backed tourism suggestion service and tourism API endpoints.
+- Next.js App Router frontend in `maview/`, replacing the older static frontend.
+- Frontend routes for login, registration, journey planning, tasks, tourism exploration, and eco-score.
+- Frontend tests with Vitest and Playwright smoke coverage.
+- Request ownership guard for user and journey access checks.
+- Local environment examples for the split frontend/backend setup.
+
+### Changed
+- Split the application into a Spring Boot backend and a Next.js frontend.
+- Updated frontend authentication to store the JWT session client-side and call the backend through Next rewrites.
+- Refreshed the journey planning UI and related API client layer.
+- Expanded journey, disruption, Google Tasks, and DTO coverage.
+- Updated README and technical documentation for the split runtime topology.
+
+### Removed
+- Removed the legacy static frontend assets from the Spring Boot resources directory.
+- Removed Selenium page-object UI tests that targeted the old static frontend.
+
 ## [v1.0beta] - 2026-02-27
 
 ### Added
