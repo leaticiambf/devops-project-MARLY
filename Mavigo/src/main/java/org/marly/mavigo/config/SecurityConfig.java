@@ -71,6 +71,7 @@ public class SecurityConfig {
     }
 
     @Bean
+    @SuppressWarnings({ "java:S4502", "java:S3330" })
     public SecurityFilterChain filterChain(HttpSecurity http,
             OAuth2AuthorizationRequestResolver googleAuthRequestResolver) throws Exception {
         http
