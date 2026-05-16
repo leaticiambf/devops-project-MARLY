@@ -38,6 +38,31 @@ class RouteCorridorGeometryTest {
     }
 
     @Test
+    void pointAtFractionAlong_handlesEmptySingleAndZeroLengthSegments() {
+        assertArrayEquals(new double[] { 0.0, 0.0 },
+                RouteCorridorGeometry.pointAtFractionAlong(List.of(), 0.5), 1e-9);
+
+        assertArrayEquals(new double[] { 2.0, 48.0 },
+                RouteCorridorGeometry.pointAtFractionAlong(List.of(new double[] { 2.0, 48.0 }), 0.5), 1e-9);
+
+        assertArrayEquals(new double[] { 2.0, 48.0 },
+                RouteCorridorGeometry.pointAtFractionAlong(
+                        List.of(new double[] { 2.0, 48.0 }, new double[] { 2.0, 48.0 }),
+                        0.5),
+                1e-9);
+    }
+
+    @Test
+    void distancePointToSegment_handlesDegenerateSegment() {
+        double distance = RouteCorridorGeometry.distancePointToSegmentMeters(
+                2.0001, 48.0,
+                2.0, 48.0,
+                2.0, 48.0);
+
+        assertTrue(distance > 7.0 && distance < 8.0);
+    }
+
+    @Test
     void sampleCentersAlongLine_respectsSingleDegenerateAndMaximumCases() {
         assertEquals(0, RouteCorridorGeometry.sampleCentersAlongLine(List.of(), 100.0, 3).size());
 
