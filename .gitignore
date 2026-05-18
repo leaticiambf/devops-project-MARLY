@@ -40,6 +40,8 @@ out/
 **/.DS_Store
 /.next/
 /node_modules
+/package.json
+/pnpm-lock.yaml
 
 ### Frontend test artifacts ###
 maview/test-results/

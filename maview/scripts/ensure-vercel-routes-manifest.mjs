@@ -30,6 +30,15 @@ if (process.env.VERCEL === "1" && existsSync(deterministicManifest)) {
   mkdirSync(repoRootNextDir, { recursive: true });
   cpSync(buildDir, repoRootNextDir, { recursive: true });
 
+  copyFileSync(
+    resolve(projectRoot, "package.json"),
+    resolve(repoRoot, "package.json"),
+  );
+  copyFileSync(
+    resolve(projectRoot, "pnpm-lock.yaml"),
+    resolve(repoRoot, "pnpm-lock.yaml"),
+  );
+
   const repoRootNodeModules = resolve(repoRoot, "node_modules");
   if (!existsSync(repoRootNodeModules)) {
     symlinkSync(resolve(projectRoot, "node_modules"), repoRootNodeModules, "dir");
