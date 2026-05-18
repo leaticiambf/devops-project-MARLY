@@ -39,6 +39,7 @@ out/
 .DS_Store
 **/.DS_Store
 /.next/
+/node_modules
 
 ### Frontend test artifacts ###
 maview/test-results/

@@ -1,4 +1,11 @@
-import { copyFileSync, cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
+import {
+  copyFileSync,
+  cpSync,
+  existsSync,
+  mkdirSync,
+  rmSync,
+  symlinkSync,
+} from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -17,8 +24,14 @@ if (existsSync(manifest) && !existsSync(deterministicManifest)) {
 }
 
 if (process.env.VERCEL === "1" && existsSync(deterministicManifest)) {
+  const repoRoot = resolve(projectRoot, "..");
   const repoRootNextDir = resolve(projectRoot, "..", ".next");
   rmSync(repoRootNextDir, { recursive: true, force: true });
   mkdirSync(repoRootNextDir, { recursive: true });
   cpSync(buildDir, repoRootNextDir, { recursive: true });
+
+  const repoRootNodeModules = resolve(repoRoot, "node_modules");
+  if (!existsSync(repoRootNodeModules)) {
+    symlinkSync(resolve(projectRoot, "node_modules"), repoRootNodeModules, "dir");
+  }
 }
