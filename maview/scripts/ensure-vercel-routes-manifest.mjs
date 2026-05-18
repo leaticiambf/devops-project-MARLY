@@ -1,9 +1,10 @@
-import { copyFileSync, existsSync, mkdirSync } from "node:fs";
+import { copyFileSync, cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(scriptDir, "..");
+const buildDir = resolve(projectRoot, ".next");
 const manifest = resolve(projectRoot, ".next", "routes-manifest.json");
 const deterministicManifest = resolve(
   projectRoot,
@@ -17,9 +18,7 @@ if (existsSync(manifest) && !existsSync(deterministicManifest)) {
 
 if (process.env.VERCEL === "1" && existsSync(deterministicManifest)) {
   const repoRootNextDir = resolve(projectRoot, "..", ".next");
+  rmSync(repoRootNextDir, { recursive: true, force: true });
   mkdirSync(repoRootNextDir, { recursive: true });
-  copyFileSync(
-    deterministicManifest,
-    resolve(repoRootNextDir, "routes-manifest-deterministic.json"),
-  );
+  cpSync(buildDir, repoRootNextDir, { recursive: true });
 }
