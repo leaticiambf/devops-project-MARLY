@@ -105,7 +105,11 @@ cd Mavigo
 
 ## Deployment Notes
 
+- Deploy the frontend on Vercel with project root `maview`
+- Deploy the backend on a Docker-capable Java host with build context `Mavigo`
+- Use Aiven PostgreSQL through the backend `DB_*` environment variables
 - Set `NEXT_PUBLIC_APP_URL` to the real frontend URL in production
 - Set `BACKEND_ORIGIN` to the deployed backend URL in production
 - Set `APP_FRONTEND_BASE_URL`, `APP_FRONTEND_ALLOWED_ORIGINS`, and `APP_OAUTH_REDIRECT_BASE_URL` to the deployed frontend URL(s)
 - The backend enables forwarded-header handling so OAuth redirects and absolute URLs work correctly behind a reverse proxy
+- See `docs/deployment.md` for the deployment variable checklist
