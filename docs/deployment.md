@@ -6,6 +6,8 @@ This branch is prepared for a split deployment:
 - Backend: a Docker-capable host such as Render, Railway, Fly.io, or Koyeb, with project root/build context set to `Mavigo`.
 - Database: Aiven PostgreSQL.
 
+Use the `server` branch for deployment-specific commits.
+
 ## Frontend Environment
 
 Set these variables in Vercel:
