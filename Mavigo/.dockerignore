@@ -1,0 +1,8 @@
+.gradle
+build
+data
+local.env
+*.log
+*.hprof
+.DS_Store
+**/.DS_Store
