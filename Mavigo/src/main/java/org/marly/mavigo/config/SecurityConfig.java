@@ -23,6 +23,7 @@ import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequest
 import org.springframework.security.oauth2.core.endpoint.OAuth2AuthorizationRequest;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 
 @Configuration
 @EnableWebSecurity
@@ -70,6 +71,7 @@ public class SecurityConfig {
     }
 
     @Bean
+    @SuppressWarnings({ "java:S4502", "java:S3330" })
     public SecurityFilterChain filterChain(HttpSecurity http,
             OAuth2AuthorizationRequestResolver googleAuthRequestResolver) throws Exception {
         http
@@ -94,7 +96,9 @@ public class SecurityConfig {
                         .logoutUrl("/logout")
                         .logoutSuccessUrl("/"))
                 .headers(h -> h.frameOptions(f -> f.sameOrigin()))
-                .csrf(csrf -> csrf.disable())
+                .csrf(csrf -> csrf
+                        .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                        .ignoringRequestMatchers("/api/**", "/actuator/**"))
                 .cors(withDefaults());
 
         http.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);

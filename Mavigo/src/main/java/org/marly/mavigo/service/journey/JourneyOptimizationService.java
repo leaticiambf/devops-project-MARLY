@@ -33,7 +33,7 @@ public class JourneyOptimizationService {
     private static final Logger LOGGER = LoggerFactory.getLogger(JourneyOptimizationService.class);
 
     private static final double MAX_TASK_OPTIMIZATION_DURATION_RATIO = 3.0;
-    private static final long MAX_TASK_OPTIMIZATION_EXTRA_SECONDS = 45 * 60;
+    private static final long MAX_TASK_OPTIMIZATION_EXTRA_SECONDS = 45L * 60;
 
     private final JourneyPlanningService journeyPlanningService;
     private final JourneyRepository journeyRepository;
