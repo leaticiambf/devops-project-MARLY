@@ -148,8 +148,8 @@ public class StopAreaServiceImpl implements StopAreaService {
                         for (int i = words.length - 1; i >= 0; i--) {
                             String word = words[i].trim().replaceAll("[^\\p{L}\\p{N}]", "");
                             // Ignore postal codes (5 digits)
-                            if (!word.matches("\\d{5}") && word.length() >= 3 &&
-                                    !word.matches(".*\\d.*")) {
+                            if (!isPostalCode(word) && word.length() >= 3 &&
+                                    !containsDigit(word)) {
                                 cityNameForSearch = word;
                                 LOGGER.info("Using '{}' as city name (extracted from words)", cityNameForSearch);
                                 break;
@@ -497,10 +497,9 @@ public class StopAreaServiceImpl implements StopAreaService {
         // If format is "Address PostalCode City" (typical BAN format)
         // Example: "21 Place Jean Charcot 95200 Sarcelles"
         // Look for the postal code (5 digits) and take what comes after
-        java.util.regex.Pattern banPattern = java.util.regex.Pattern.compile("\\d{5}\\s+(.+)");
-        java.util.regex.Matcher banMatcher = banPattern.matcher(trimmed);
-        if (banMatcher.find()) {
-            String city = banMatcher.group(1).trim();
+        String cityAfterPostalCode = cityAfterPostalCode(trimmed);
+        if (cityAfterPostalCode != null) {
+            String city = cityAfterPostalCode.trim();
             // Clean: remove commas and additional parts
             if (city.contains(",")) {
                 city = city.split(",")[0].trim();
@@ -515,13 +514,12 @@ public class StopAreaServiceImpl implements StopAreaService {
             for (String part : parts) {
                 String cleaned = part.trim();
                 // If the part contains a postal code (5 digits), extract the city that follows
-                java.util.regex.Pattern postalPattern = java.util.regex.Pattern.compile("\\d{5}\\s+(.+)");
-                java.util.regex.Matcher postalMatcher = postalPattern.matcher(cleaned);
-                if (postalMatcher.find()) {
-                    return postalMatcher.group(1).trim();
+                String city = cityAfterPostalCode(cleaned);
+                if (city != null) {
+                    return city.trim();
                 }
                 // Otherwise, if it's a text string without digits, it's probably the city
-                if (!cleaned.matches(".*\\d.*")) {
+                if (!containsDigit(cleaned)) {
                     return cleaned;
                 }
             }
@@ -531,6 +529,42 @@ public class StopAreaServiceImpl implements StopAreaService {
 
         // No special format, return as-is
         return trimmed;
+    }
+
+    private static boolean containsDigit(String value) {
+        for (int i = 0; i < value.length(); i++) {
+            if (Character.isDigit(value.charAt(i))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isPostalCode(String value) {
+        if (value.length() != 5) {
+            return false;
+        }
+        for (int i = 0; i < value.length(); i++) {
+            if (!Character.isDigit(value.charAt(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static String cityAfterPostalCode(String value) {
+        for (int i = 0; i <= value.length() - 5; i++) {
+            String candidate = value.substring(i, i + 5);
+            if (!isPostalCode(candidate)) {
+                continue;
+            }
+            int next = i + 5;
+            if (next < value.length() && Character.isWhitespace(value.charAt(next))) {
+                String city = value.substring(next).trim();
+                return city.isEmpty() ? null : city;
+            }
+        }
+        return null;
     }
 
     private void logPlaces(String source, String query, List<PrimPlace> places) {
