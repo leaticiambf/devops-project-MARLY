@@ -6,6 +6,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
@@ -54,6 +55,7 @@ import {
   isUuidString,
   normalizeLocalDateTimeForApi,
 } from "@/lib/utils/format";
+import { cn } from "@/lib/utils/cn";
 import {
   forwardGeocodeMapbox,
   reverseGeocodeMapbox,
@@ -80,6 +82,48 @@ type PlannerState = {
   includeTaskOptimization: boolean;
   touristModeEnabled: boolean;
 };
+
+function ToggleSwitch({
+  checked,
+  onChange,
+  label,
+  description,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  label: string;
+  description: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className="flex w-full items-center justify-between gap-3 rounded-2xl border border-line bg-surface-strong px-4 py-3 text-left transition hover:border-brand/50"
+    >
+      <span>
+        <span className="block text-sm font-semibold text-foreground">{label}</span>
+        <span className="mt-0.5 block text-xs leading-5 text-secondary">
+          {description}
+        </span>
+      </span>
+      <span
+        className={cn(
+          "flex h-7 w-12 shrink-0 items-center rounded-full p-1 transition",
+          checked ? "bg-brand" : "bg-background",
+        )}
+      >
+        <span
+          className={cn(
+            "h-5 w-5 rounded-full bg-white shadow transition",
+            checked ? "translate-x-5" : "translate-x-0",
+          )}
+        />
+      </span>
+    </button>
+  );
+}
 
 function formatCoordPairForApi(lat: number, lng: number) {
   return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
@@ -1224,6 +1268,58 @@ function JourneySegmentsPanel({
   );
 }
 
+function JourneySegmentsStrip({ journey }: { journey: JourneyResponse }) {
+  return (
+    <div className="flex gap-3 overflow-x-auto pb-2">
+      {journey.segments.map((segment) => (
+        <div
+          key={segment.segmentId}
+          className="min-w-[260px] max-w-[320px] rounded-2xl border border-line bg-surface-strong p-4"
+        >
+          <div className="flex items-center gap-2 flex-wrap">
+            {segment.lineName ? (
+              <span
+                className="transit-line-badge"
+                style={{ backgroundColor: segmentAccent(segment) }}
+              >
+                {segment.lineName}
+              </span>
+            ) : null}
+            <span className="text-xs font-bold uppercase tracking-[0.18em] text-secondary font-mono">
+              {segmentModeLabel(segment)}
+            </span>
+          </div>
+          <p className="mt-2 text-sm font-semibold leading-5 text-foreground">
+            {segmentTitle(segment)}
+          </p>
+          <p className="mt-2 text-xs leading-5 text-secondary font-mono">
+            {segment.scheduledDeparture
+              ? formatDateTime(segment.scheduledDeparture)
+              : "Unknown departure"}
+            {" · "}
+            {formatDuration(segment.durationSeconds)}
+            {segment.distanceMeters != null
+              ? ` · ${formatDistance(segment.distanceMeters)}`
+              : ""}
+          </p>
+          {segment.points.length ? (
+            <div className="mt-3 flex max-h-28 flex-wrap gap-2 overflow-auto">
+              {segment.points.map((point, pointIndex) => (
+                <span
+                  key={`${segment.segmentId}-${pointIndex}-${point.name}`}
+                  className="rounded-full border border-line bg-surface px-2.5 py-1 text-[0.68rem] font-semibold text-secondary"
+                >
+                  {point.name?.trim() || "Arret"}
+                </span>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 async function completeIncludedGoogleTasks(
   journey: JourneyResponse,
   userId: string,
@@ -1279,6 +1375,8 @@ export function JourneyWorkspace({ mapboxToken }: JourneyWorkspaceProps) {
   const [results, setResults] = useState<JourneyResponse[]>([]);
   const [currentJourney, setCurrentJourney] = useState<JourneyResponse | null>(null);
   const [journeyMessage, setJourneyMessage] = useState<string | null>(null);
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const [tripOptionsOpen, setTripOptionsOpen] = useState(false);
   const exploreRestaurantDeeplinkProcessedKeyRef = useRef("");
   const liveJourneyMapRef = useRef<HTMLDivElement>(null);
   const [journeyMapFlyTo, setJourneyMapFlyTo] = useState<{
@@ -1297,6 +1395,12 @@ export function JourneyWorkspace({ mapboxToken }: JourneyWorkspaceProps) {
   useEffect(() => {
     setJourneyMapFlyTo(null);
   }, [currentJourney?.journeyId]);
+
+  useEffect(() => {
+    if (results.length && !currentJourney) {
+      setTripOptionsOpen(true);
+    }
+  }, [currentJourney, results.length]);
 
   const handleJourneyStopFocusOnMap = useCallback((coordinates: [number, number]) => {
     setJourneyMapFlyTo({
@@ -2439,13 +2543,619 @@ export function JourneyWorkspace({ mapboxToken }: JourneyWorkspaceProps) {
 
   return (
     <div className="grid gap-6">
-      <section className="grid gap-6 xl:grid-cols-[1.3fr_0.7fr]">
+      <section className="hidden gap-6 xl:grid xl:grid-cols-[410px_minmax(0,1fr)]">
+        <Card className="rounded-4xl xl:sticky xl:top-28 xl:max-h-[calc(100vh-8rem)] xl:overflow-auto">
+          {currentJourney ? (
+            <>
+              <div className="flex flex-wrap items-center gap-3">
+                <Badge variant="success">Live journey</Badge>
+                <Badge variant="muted">{currentJourney.status}</Badge>
+              </div>
+              <h1 className="mt-5 text-2xl font-bold tracking-tight text-foreground">
+                Journey in progress
+              </h1>
+              <p className="mt-3 text-sm leading-6 text-secondary">
+                {currentJourney.originLabel} to {currentJourney.destinationLabel}
+              </p>
+              <div className="mt-6 rounded-full bg-surface-strong border border-line p-2">
+                <div
+                  className="h-3 rounded-full bg-brand transition-[width]"
+                  style={{ width: `${currentProgress}%` }}
+                />
+              </div>
+              <p className="mt-2 text-xs font-bold uppercase tracking-[0.24em] text-secondary font-mono">
+                Progress {currentProgress}%
+              </p>
+              {currentJourney.segments.length ? (
+                <div className="mt-6">
+                  <p className="text-xs font-bold uppercase tracking-[0.24em] text-secondary">
+                    Itinerary
+                  </p>
+                  <p className="mt-1 text-xs text-secondary">
+                    Cliquez un arrêt ou une tâche géolocalisée pour centrer la carte.
+                  </p>
+                  <div className="mt-3">
+                    <JourneySegmentsPanel
+                      journey={currentJourney}
+                      resolvedTasks={resolvedJourneyTasks}
+                      taskWalkLegs={taskWalkLegs}
+                      taskGeocodedAddresses={taskGeocodedAddresses}
+                      onFocusOnMap={handleJourneyStopFocusOnMap}
+                    />
+                  </div>
+                </div>
+              ) : null}
+              <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                <Button
+                  onClick={() => completeJourney.mutate(currentJourney)}
+                  disabled={completeJourney.isPending}
+                >
+                  Complete
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => cancelJourney.mutate(currentJourney.journeyId)}
+                  disabled={cancelJourney.isPending}
+                >
+                  Cancel
+                </Button>
+              </div>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <Button
+                  variant="ghost"
+                  onClick={() =>
+                    setDisruptionMode((current) =>
+                      current === "line" ? null : "line",
+                    )
+                  }
+                >
+                  Line issue
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() =>
+                    setDisruptionMode((current) =>
+                      current === "station" ? null : "station",
+                    )
+                  }
+                >
+                  Station issue
+                </Button>
+              </div>
+              <div className="mt-4 rounded-2xl border border-line bg-surface-strong p-4">
+                <p className="text-xs font-bold uppercase tracking-[0.22em] text-secondary">
+                  Disruption Support
+                </p>
+                <h2 className="mt-2 text-lg font-bold text-foreground">
+                  {disruptionMode === "line"
+                    ? "Choose the affected line"
+                    : disruptionMode === "station"
+                      ? "Choose the affected station"
+                      : "Report an issue if this trip changes"}
+                </h2>
+
+                {disruptionMode === "line" ? (
+                  <div className="mt-4 grid gap-3">
+                    {linesQuery.isLoading ? (
+                      <StatePanel
+                        title="Loading journey lines"
+                        description="Choose the affected line as soon as this list is ready."
+                      />
+                    ) : linesQuery.data?.length ? (
+                      linesQuery.data.map((line: LineInfo) => (
+                        <button
+                          key={`${line.lineCode}-${line.mode}`}
+                          type="button"
+                          onClick={() => reportLineDisruption.mutate(line.lineCode)}
+                          disabled={reportLineDisruption.isPending}
+                          className="flex items-center justify-between rounded-xl border border-line bg-surface px-3 py-3 text-left transition hover:bg-background disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <div className="flex min-w-0 items-center gap-3">
+                            <span
+                              className="h-4 w-4 shrink-0 rounded-full"
+                              style={{
+                                backgroundColor: line.lineColor
+                                  ? `#${line.lineColor}`
+                                  : "#0c7c59",
+                              }}
+                            />
+                            <div className="min-w-0">
+                              <p className="truncate font-semibold text-foreground">
+                                {line.lineCode || "Unknown line"}
+                              </p>
+                              <p className="truncate text-xs text-secondary">
+                                {line.lineName}
+                              </p>
+                            </div>
+                          </div>
+                          <span className="ml-3 shrink-0 text-xs font-semibold text-secondary font-mono">
+                            {line.mode}
+                          </span>
+                        </button>
+                      ))
+                    ) : (
+                      <StatePanel
+                        title="No line can be reported here"
+                        description="This journey does not expose a supported line for disruption reporting."
+                      />
+                    )}
+                  </div>
+                ) : disruptionMode === "station" ? (
+                  <div className="mt-4 grid gap-3">
+                    {stopsQuery.isLoading ? (
+                      <StatePanel
+                        title="Loading journey stops"
+                        description="Choose the affected stop as soon as this list is ready."
+                      />
+                    ) : stopsQuery.data?.length ? (
+                      stopsQuery.data.map((stop: StopInfo) => (
+                        <button
+                          key={`${stop.stopPointId}-${stop.sequenceInJourney}`}
+                          type="button"
+                          onClick={() => reportStopDisruption.mutate(stop.stopPointId)}
+                          disabled={reportStopDisruption.isPending}
+                          className="rounded-xl border border-line bg-surface px-3 py-3 text-left transition hover:bg-background disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <p className="truncate font-semibold text-foreground">
+                            {stop.name}
+                          </p>
+                          <p className="mt-1 text-xs text-secondary">
+                            Step {stop.sequenceInJourney + 1}
+                            {stop.onLineCode ? ` · Line ${stop.onLineCode}` : ""}
+                          </p>
+                        </button>
+                      ))
+                    ) : (
+                      <StatePanel
+                        title="No stop can be reported here"
+                        description="This journey does not expose a supported stop for disruption reporting."
+                      />
+                    )}
+                  </div>
+                ) : (
+                  <StatePanel
+                    className="mt-4"
+                    title="Ready to report a change"
+                    description="Choose Line issue or Station issue, then pick the affected item."
+                  />
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+          <div className="flex flex-wrap items-center gap-3">
+            <Badge variant="accent">Journey Planner</Badge>
+          </div>
+          <div className="mt-4 rounded-2xl border border-line bg-surface-strong p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.22em] text-secondary">
+                  Google Tasks
+                </p>
+                <p className="mt-1 text-sm font-semibold text-foreground">
+                  {googleLinked ? "Connected for route planning" : "Not connected"}
+                </p>
+                <p className="mt-1 text-xs leading-5 text-secondary">
+                  {googleLinked
+                    ? "Tasks can be included when they improve the route."
+                    : "Connect Tasks to include errands in journeys."}
+                </p>
+              </div>
+              <Link
+                href="/tasks"
+                className="inline-flex h-9 min-w-[76px] items-center justify-center rounded-full border border-line bg-background px-3 text-xs font-bold text-foreground"
+              >
+                {googleLinked ? "Manage" : "Connect"}
+              </Link>
+            </div>
+          </div>
+          <div className="mt-3 rounded-2xl border border-line bg-surface-strong p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.22em] text-secondary">
+                  Smart Suggestions
+                </p>
+                <p className="mt-1 text-sm font-semibold text-foreground">
+                  Tomorrow&apos;s likely trips
+                </p>
+                <p className="mt-1 text-xs leading-5 text-secondary">
+                  Open task-based trip ideas and prefill the planner.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSuggestionsOpen(true)}
+                className="inline-flex h-9 min-w-[76px] items-center justify-center rounded-full border border-line bg-background px-3 text-xs font-bold text-foreground"
+              >
+                Open
+              </button>
+            </div>
+          </div>
+
+          <h1 className="mt-5 text-2xl font-bold tracking-tight text-foreground">
+            Plan the next trip
+          </h1>
+          <p className="mt-3 text-sm leading-6 text-secondary">
+            Set a route, add optional preferences, then follow the live map.
+          </p>
+
+          <div className="mt-7 grid gap-5">
+            <section className="grid gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.24em] text-secondary">
+                  Route
+                </p>
+                <p className="mt-1 text-xs text-secondary">Required trip details.</p>
+              </div>
+              <div className="grid gap-4">
+                <div className="relative">
+                  <Input
+                    label="From"
+                    value={planner.originQuery}
+                    onChange={(event) => updatePlanner("originQuery", event.target.value)}
+                    onFocus={() => setShowOriginSuggestion(true)}
+                    onBlur={() => {
+                      window.setTimeout(() => setShowOriginSuggestion(false), 120);
+                    }}
+                    placeholder="Gare de Lyon"
+                    hint="Type an exact address or use your current location."
+                    autoComplete="off"
+                  />
+                  {showOriginSuggestion ? (
+                    <div className="absolute left-0 right-0 top-full z-20 mt-2 grid gap-2 rounded-2xl border border-line bg-surface p-2 text-left shadow-[0_18px_40px_rgba(0,0,0,0.28)]">
+                      <button
+                        type="button"
+                        disabled={isResolvingCurrentLocation}
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          void handleCurrentLocationAsOrigin();
+                        }}
+                        className="flex items-start justify-between rounded-xl px-3 py-2.5 transition hover:bg-surface-strong disabled:opacity-60"
+                      >
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-[0.22em] text-secondary">
+                            Ma localisation
+                          </p>
+                          <p className="mt-1 text-sm font-medium text-foreground">
+                            {isResolvingCurrentLocation
+                              ? "Recuperation en cours..."
+                              : "Utiliser ma position actuelle"}
+                          </p>
+                        </div>
+                      </button>
+
+                      {homeAddressSuggestion ? (
+                        <button
+                          type="button"
+                          onMouseDown={(event) => {
+                            event.preventDefault();
+                            updatePlanner("originQuery", homeAddressSuggestion);
+                            setShowOriginSuggestion(false);
+                          }}
+                          className="flex items-start justify-between rounded-xl px-3 py-2.5 transition hover:bg-surface-strong"
+                        >
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold uppercase tracking-[0.22em] text-secondary">
+                              Home
+                            </p>
+                            <p className="mt-1 truncate text-sm font-medium text-foreground">
+                              {homeAddressSuggestion}
+                            </p>
+                          </div>
+                          <span className="ml-4 text-xs uppercase tracking-[0.18em] text-secondary">
+                            Use
+                          </span>
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+                <Input
+                  label="To"
+                  value={planner.destinationQuery}
+                  onChange={(event) =>
+                    updatePlanner("destinationQuery", event.target.value)
+                  }
+                  placeholder="Chatelet"
+                  hint="Destination address or station name."
+                  autoComplete="off"
+                />
+                <Input
+                  label="Departure"
+                  type="datetime-local"
+                  value={planner.departureTime}
+                  onChange={(event) => updatePlanner("departureTime", event.target.value)}
+                />
+              </div>
+            </section>
+
+            <section className="grid gap-4 border-t border-line pt-5">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.24em] text-secondary">
+                  Optional stop
+                </p>
+                <p className="mt-1 text-xs text-secondary">
+                  Add this only when you need a stopover.
+                </p>
+              </div>
+              <div className="grid gap-4">
+                <Input
+                  label="Via stop"
+                  value={planner.intermediateQuery}
+                  onChange={(event) =>
+                    updatePlanner("intermediateQuery", event.target.value)
+                  }
+                  placeholder="Optional stopover"
+                />
+                <Input
+                  label="Via departure"
+                  type="datetime-local"
+                  value={planner.intermediateDepartureTime}
+                  onChange={(event) =>
+                    updatePlanner("intermediateDepartureTime", event.target.value)
+                  }
+                  hint="Only used when a via stop is set."
+                />
+              </div>
+            </section>
+
+            <section className="grid gap-4 border-t border-line pt-5">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.24em] text-secondary">
+                  Preferences
+                </p>
+                <p className="mt-1 text-xs text-secondary">
+                  Turn on only what matters for this trip.
+                </p>
+              </div>
+              <label className="grid gap-2 self-start text-sm font-medium text-secondary">
+                <span>Comfort preset</span>
+                <select
+                  value={planner.namedComfortSettingId}
+                  onChange={(event) =>
+                    updatePlanner("namedComfortSettingId", event.target.value)
+                  }
+                  className="w-full appearance-none rounded-lg border border-line bg-surface-strong px-4 py-3 text-sm text-foreground font-mono outline-none transition focus:border-brand focus:ring-2 focus:ring-brand-soft"
+                >
+                  <option value="">No preset</option>
+                  {(comfortSettingsQuery.data ?? []).map((setting) => (
+                    <option key={setting.id} value={setting.id}>
+                      {setting.name}
+                    </option>
+                  ))}
+                </select>
+                {(comfortSettingsQuery.data?.length ?? 0) === 0 ? (
+                  <span className="text-xs text-secondary">
+                    Create presets from your profile menu in the top bar.
+                  </span>
+                ) : null}
+              </label>
+              <div className="grid gap-2 text-sm">
+                <ToggleSwitch
+                  checked={planner.ecoModeEnabled}
+                  onChange={(checked) => updatePlanner("ecoModeEnabled", checked)}
+                  label="Eco mode"
+                  description="Prefer greener options."
+                />
+                <ToggleSwitch
+                  checked={planner.wheelchairAccessible}
+                  onChange={(checked) => updatePlanner("wheelchairAccessible", checked)}
+                  label="Wheelchair access"
+                  description="Prioritize accessible routes."
+                />
+                <ToggleSwitch
+                  checked={planner.includeTaskOptimization}
+                  onChange={(checked) =>
+                    updatePlanner("includeTaskOptimization", checked)
+                  }
+                  label="Google Tasks stops"
+                  description="Include useful errands when possible."
+                />
+                <ToggleSwitch
+                  checked={planner.touristModeEnabled}
+                  onChange={(checked) => updatePlanner("touristModeEnabled", checked)}
+                  label="Tourist mode"
+                  description="Show restaurants along the route."
+                />
+              </div>
+            </section>
+          </div>
+
+          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            <Button
+              onClick={() => planJourney.mutate(undefined)}
+              disabled={planJourney.isPending || plannerIssues.length > 0}
+            >
+              {planJourney.isPending ? "Planning..." : "Plan journey"}
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() =>
+                setPlanner((current) => ({
+                  ...current,
+                  departureTime: getLocalDateTimeInputValue(),
+                }))
+              }
+            >
+              Reset departure
+            </Button>
+          </div>
+
+          {journeyMessage ? (
+            <StatePanel
+              className="mt-6"
+              eyebrow="Planner update"
+              title={journeyMessage}
+            />
+          ) : null}
+
+          {plannerIssues.length ? (
+            <StatePanel
+              className="mt-4"
+              eyebrow="Need to fix"
+              title="Your trip details need a quick adjustment"
+              description={plannerIssues.join(" ")}
+              tone="danger"
+            />
+          ) : null}
+
+          {plannerNotices.length ? (
+            <StatePanel
+              className="mt-4"
+              eyebrow="Helpful note"
+              title="A small change could improve this trip"
+              description={plannerNotices.join(" ")}
+              tone="success"
+            />
+          ) : null}
+            </>
+          )}
+        </Card>
+
+        <Card className="relative min-h-[680px] overflow-hidden rounded-4xl p-0">
+          <div ref={liveJourneyMapRef} className="h-full min-h-[680px]">
+            {currentJourney && liveJourneyMapData && liveJourneyMapData.segments.length ? (
+              <TransportMap
+                mapboxToken={mapboxToken}
+                stops={liveJourneyMapData.stops}
+                segments={liveJourneyMapData.segments}
+                arrivalAddressQuery={currentJourney.destinationLabel}
+                tasks={liveJourneyTaskMarkers}
+                touristRestaurants={
+                  planner.touristModeEnabled ? liveTouristMapMarkers : null
+                }
+                onRequestReroute={handleRerouteFromCurrentLocation}
+                isRerouting={isReroutingFromLocation}
+                flyToRequest={journeyMapFlyTo}
+              />
+            ) : (
+              <div className="flex min-h-[680px] items-center justify-center bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.12),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(0,155,72,0.14),transparent_38%)] px-6">
+                <StatePanel
+                  className="max-w-xl"
+                  eyebrow="Map ready"
+                  title="Plan and start a journey to see the live route"
+                  description="The live map will show transport segments, stops, your position, tasks, tourist restaurants and rerouting controls once a journey is active."
+                />
+              </div>
+            )}
+          </div>
+        </Card>
+      </section>
+
+      {suggestionsOpen ? (
+        <div className="fixed inset-0 z-50 bg-background/70 backdrop-blur-sm">
+          <button
+            type="button"
+            className="absolute inset-0 cursor-default"
+            aria-label="Close suggestions"
+            onClick={() => setSuggestionsOpen(false)}
+          />
+          <aside className="absolute bottom-0 right-0 top-auto max-h-[86vh] w-full overflow-auto rounded-t-[2rem] border border-line bg-surface p-5 shadow-[0_20px_70px_rgba(0,0,0,0.42)] sm:bottom-5 sm:right-5 sm:top-5 sm:max-h-none sm:max-w-md sm:rounded-[2rem]">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.28em] text-secondary">
+                  Smart Suggestions
+                </p>
+                <h2 className="mt-2 text-2xl font-bold text-foreground">
+                  Tomorrow&apos;s likely trips
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSuggestionsOpen(false)}
+                className="rounded-full border border-line bg-surface-strong px-3 py-2 text-sm font-bold text-foreground"
+              >
+                Close
+              </button>
+            </div>
+            <Badge variant="accent" className="mt-4">
+              {formatTaskDateOnly(getTomorrowDateString())}
+            </Badge>
+
+            <div className="mt-5 grid gap-3">
+              {!googleLinked ? (
+                <StatePanel
+                  title="Connect Google Tasks to unlock suggestions"
+                  description="When your Google account is linked, tomorrow's likely trips will appear here."
+                  tone="warning"
+                />
+              ) : suggestionsQuery.isLoading ? (
+                <StatePanel
+                  eyebrow="Loading"
+                  title="Looking ahead to tomorrow"
+                  description="We're checking your upcoming tasks for trip ideas."
+                />
+              ) : suggestions.length ? (
+                suggestions.map((task) => (
+                  <div
+                    key={task.id}
+                    className="rounded-xl border border-line bg-surface-strong p-4"
+                  >
+                    <p className="font-semibold text-foreground">
+                      {task.title || "Untitled task"}
+                    </p>
+                    <p className="mt-1 text-sm text-secondary">
+                      #{task.locationQuery}
+                    </p>
+                    <div className="mt-3 flex gap-3">
+                      <Button
+                        variant="ghost"
+                        onClick={() => {
+                          selectSuggestion(task.locationQuery || "");
+                          setSuggestionsOpen(false);
+                        }}
+                      >
+                        Prefill planner
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <StatePanel
+                  title="No suggested trip for tomorrow yet"
+                  description="As soon as tomorrow's tasks contain useful route details, they'll appear here."
+                />
+              )}
+            </div>
+          </aside>
+        </div>
+      ) : null}
+
+      <section className="grid gap-6 xl:hidden">
         <Card className="rounded-4xl">
           <div className="flex flex-wrap items-center gap-3">
             <Badge variant="accent">Journey Planner</Badge>
-            <Badge variant={googleLinked ? "success" : "muted"}>
+            <Badge
+              variant={googleLinked ? "success" : "muted"}
+              className="hidden sm:inline-flex"
+            >
               {googleLinked ? "Task-aware planning ready" : "Task sync optional"}
             </Badge>
+          </div>
+          <div className="mt-4 grid gap-3 sm:hidden">
+            <div className="rounded-2xl border border-line bg-surface-strong p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.22em] text-secondary">
+                    Google Tasks
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-foreground">
+                    {googleLinked ? "Connected for route planning" : "Not connected"}
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-secondary">
+                    {googleLinked
+                      ? "Tasks can be included when they improve the route."
+                      : "Connect Tasks from the Tasks page to include errands in journeys."}
+                  </p>
+                </div>
+                <Link
+                  href="/tasks"
+                  className="rounded-full border border-line bg-background px-3 py-2 text-xs font-bold text-foreground"
+                >
+                  {googleLinked ? "Manage" : "Connect"}
+                </Link>
+              </div>
+            </div>
           </div>
           <h1 className="mt-5 page-title">Plan the next trip</h1>
           <p className="mt-4 page-copy">
@@ -2575,47 +3285,33 @@ export function JourneyWorkspace({ mapboxToken }: JourneyWorkspaceProps) {
             </label>
           </div>
 
-          <div className="mt-6 flex flex-wrap gap-3 text-sm">
-            <label className="flex items-center gap-3 rounded-lg bg-surface-strong border border-line px-4 py-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={planner.ecoModeEnabled}
-                onChange={(event) =>
-                  updatePlanner("ecoModeEnabled", event.target.checked)
-                }
-              />
-              Eco mode
-            </label>
-            <label className="flex items-center gap-3 rounded-lg bg-surface-strong border border-line px-4 py-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={planner.wheelchairAccessible}
-                onChange={(event) =>
-                  updatePlanner("wheelchairAccessible", event.target.checked)
-                }
-              />
-              Wheelchair access
-            </label>
-            <label className="flex items-center gap-3 rounded-lg bg-surface-strong border border-line px-4 py-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={planner.includeTaskOptimization}
-                onChange={(event) =>
-                  updatePlanner("includeTaskOptimization", event.target.checked)
-                }
-              />
-              Include Google Tasks stops
-            </label>
-            <label className="flex items-center gap-3 rounded-lg bg-surface-strong border border-line px-4 py-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={planner.touristModeEnabled}
-                onChange={(event) =>
-                  updatePlanner("touristModeEnabled", event.target.checked)
-                }
-              />
-              Mode touriste (restaurants sur la carte du trajet)
-            </label>
+          <div className="mt-6 grid gap-3 text-sm sm:grid-cols-2">
+            <ToggleSwitch
+              checked={planner.ecoModeEnabled}
+              onChange={(checked) => updatePlanner("ecoModeEnabled", checked)}
+              label="Eco mode"
+              description="Prefer greener options."
+            />
+            <ToggleSwitch
+              checked={planner.wheelchairAccessible}
+              onChange={(checked) => updatePlanner("wheelchairAccessible", checked)}
+              label="Wheelchair access"
+              description="Prioritize accessible routes."
+            />
+            <ToggleSwitch
+              checked={planner.includeTaskOptimization}
+              onChange={(checked) =>
+                updatePlanner("includeTaskOptimization", checked)
+              }
+              label="Google Tasks stops"
+              description="Include useful errands when possible."
+            />
+            <ToggleSwitch
+              checked={planner.touristModeEnabled}
+              onChange={(checked) => updatePlanner("touristModeEnabled", checked)}
+              label="Tourist mode"
+              description="Show restaurants along the route."
+            />
           </div>
           <div className="mt-6 flex flex-wrap gap-3">
             <Button
@@ -2723,7 +3419,7 @@ export function JourneyWorkspace({ mapboxToken }: JourneyWorkspaceProps) {
       </section>
 
       {currentJourney ? (
-        <section>
+        <section className="xl:hidden">
           <Card className="rounded-4xl">
             <div className="flex flex-wrap items-center gap-3">
               <Badge variant="accent">Live map</Badge>
@@ -2852,7 +3548,7 @@ export function JourneyWorkspace({ mapboxToken }: JourneyWorkspaceProps) {
       ) : null}
 
       {currentJourney ? (
-        <section className="grid gap-6 xl:grid-cols-[1fr_0.9fr]">
+        <section className="grid gap-6 xl:hidden">
           <Card>
             <div className="flex flex-wrap items-center gap-3">
               <Badge variant="success">Live journey</Badge>
@@ -2880,6 +3576,26 @@ export function JourneyWorkspace({ mapboxToken }: JourneyWorkspaceProps) {
             <p className="mt-2 text-xs font-bold uppercase tracking-[0.24em] text-secondary font-mono">
               Progress {currentProgress}%
             </p>
+
+            {currentJourney.segments.length ? (
+              <div className="mt-6 hidden xl:block">
+                <p className="text-xs font-bold uppercase tracking-[0.24em] text-secondary">
+                  Journey segments and stops
+                </p>
+                <p className="mt-1 text-xs text-secondary">
+                  Cliquez un arrêt ou une tâche géolocalisée pour centrer la carte sur ce point.
+                </p>
+                <div className="mt-3">
+                  <JourneySegmentsPanel
+                    journey={currentJourney}
+                    resolvedTasks={resolvedJourneyTasks}
+                    taskWalkLegs={taskWalkLegs}
+                    taskGeocodedAddresses={taskGeocodedAddresses}
+                    onFocusOnMap={handleJourneyStopFocusOnMap}
+                  />
+                </div>
+              </div>
+            ) : null}
 
             <div className="mt-6 flex flex-wrap gap-3">
               <Button
@@ -3026,18 +3742,28 @@ export function JourneyWorkspace({ mapboxToken }: JourneyWorkspaceProps) {
         </section>
       ) : null}
 
-      {results.length ? (
-        <section className="grid gap-4">
-          <div className="flex items-center justify-between gap-4">
+      {results.length && tripOptionsOpen ? (
+        <section className="fixed inset-0 z-50 overflow-auto bg-background/92 p-4 backdrop-blur-xl sm:p-6">
+          <div className="mx-auto grid min-h-full max-w-7xl content-start gap-4">
+          <div className="sticky top-0 z-10 flex items-center justify-between gap-4 rounded-3xl border border-line bg-background/95 p-4 backdrop-blur-xl">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.28em] text-secondary">
                 Trip Options
               </p>
               <h2 className="mt-2 text-2xl font-bold text-foreground">Available itineraries</h2>
             </div>
-            <Badge variant="accent">
-              {results.length} option{results.length > 1 ? "s" : ""}
-            </Badge>
+            <div className="flex items-center gap-3">
+              <Badge variant="accent">
+                {results.length} option{results.length > 1 ? "s" : ""}
+              </Badge>
+              <button
+                type="button"
+                onClick={() => setTripOptionsOpen(false)}
+                className="rounded-full border border-line bg-surface-strong px-4 py-2 text-sm font-bold text-foreground transition hover:border-brand/60"
+              >
+                Close
+              </button>
+            </div>
           </div>
 
           {results.map((journey, index) => (
@@ -3095,15 +3821,15 @@ export function JourneyWorkspace({ mapboxToken }: JourneyWorkspaceProps) {
                   ) : null}
                 </div>
 
-                <div className="w-full max-w-sm">
-                  <JourneySegmentsPanel
-                    journey={journey}
-                    resolvedTasks={resolveJourneyTasks(journey, {}, { includeWithoutCoords: true })}
-                  />
+                <div className="w-full xl:max-w-3xl">
+                  <JourneySegmentsStrip journey={journey} />
                   <div className="mt-5">
                     <Button
                       className="w-full"
-                      onClick={() => startJourney.mutate(journey)}
+                      onClick={() => {
+                        startJourney.mutate(journey);
+                        setTripOptionsOpen(false);
+                      }}
                       disabled={startJourney.isPending}
                     >
                       {startJourney.isPending ? "Starting..." : "Start journey"}
@@ -3113,7 +3839,18 @@ export function JourneyWorkspace({ mapboxToken }: JourneyWorkspaceProps) {
               </div>
             </Card>
           ))}
+          </div>
         </section>
+      ) : null}
+
+      {results.length && !currentJourney && !tripOptionsOpen ? (
+        <button
+          type="button"
+          onClick={() => setTripOptionsOpen(true)}
+          className="fixed bottom-28 right-4 z-40 rounded-full border border-line bg-brand px-5 py-3 text-sm font-bold text-white shadow-[0_18px_44px_rgba(0,0,0,0.35)] transition hover:bg-brand-strong lg:bottom-8 lg:right-8"
+        >
+          Show trip options
+        </button>
       ) : null}
     </div>
   );
