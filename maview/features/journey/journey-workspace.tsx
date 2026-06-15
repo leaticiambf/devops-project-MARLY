@@ -3029,13 +3029,12 @@ export function JourneyWorkspace({ mapboxToken }: JourneyWorkspaceProps) {
                 flyToRequest={journeyMapFlyTo}
               />
             ) : (
-              <div className="flex min-h-[680px] items-center justify-center bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.12),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(0,155,72,0.14),transparent_38%)] px-6">
-                <StatePanel
-                  className="max-w-xl"
-                  eyebrow="Map ready"
-                  title="Plan and start a journey to see the live route"
-                  description="The live map will show transport segments, stops, your position, tasks, tourist restaurants and rerouting controls once a journey is active."
-                />
+              <div className="min-h-[680px] bg-surface p-5">
+                <div className="mb-4 flex flex-wrap items-center gap-3">
+                  <Badge variant="accent">Live map</Badge>
+                  <Badge variant="muted">No journey planned yet</Badge>
+                </div>
+                <TransportMap mapboxToken={mapboxToken} />
               </div>
             )}
           </div>
@@ -3417,6 +3416,27 @@ export function JourneyWorkspace({ mapboxToken }: JourneyWorkspaceProps) {
           </div>
         </Card>
       </section>
+
+      {!currentJourney ? (
+        <section className="xl:hidden">
+          <Card className="rounded-4xl">
+            <div className="flex flex-wrap items-center gap-3">
+              <Badge variant="accent">Live map</Badge>
+              <Badge variant="muted">No journey planned yet</Badge>
+            </div>
+            <h2 className="mt-4 text-2xl font-bold text-foreground">
+              Explore the network before planning
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-secondary">
+              La carte reste disponible même sans trajet actif. Elle affiche une vue de départ
+              avec les contrôles de carte et votre position si vous autorisez la localisation.
+            </p>
+            <div className="mt-5">
+              <TransportMap mapboxToken={mapboxToken} />
+            </div>
+          </Card>
+        </section>
+      ) : null}
 
       {currentJourney ? (
         <section className="xl:hidden">
