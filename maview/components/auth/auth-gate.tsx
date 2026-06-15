@@ -4,6 +4,7 @@ import { useEffect } from "react";
 
 import { usePathname, useRouter } from "next/navigation";
 
+import { LogoMark } from "@/components/brand/logo-mark";
 import { Card } from "@/components/ui/card";
 import { useAuth } from "@/providers/auth-provider";
 
@@ -20,7 +21,11 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
   if (isRestoring || !isAuthenticated) {
     return (
-      <Card className="mx-auto mt-20 max-w-2xl border-l-4 border-l-brand">
+      <Card className="mx-auto mt-16 max-w-2xl border-l-4 border-l-brand text-center">
+        <LogoMark
+          className="mx-auto mb-6 h-[150px] w-[150px] p-4"
+          imageClassName="scale-125"
+        />
         <p className="text-xs font-bold uppercase tracking-[0.3em] text-secondary font-mono">
           Session
         </p>

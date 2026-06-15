@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.2.1] - 2026-06-15
+
+### Added
+- Live map display on the Journey page before a journey is planned.
+- Mobile/tablet live map section for users without an active journey.
+- Mavigo logo component reused across the app shell and authentication screens.
+- Mobile quick access cards and bottom navigation for the main features.
+
+### Changed
+- Polished the responsive Journey workspace while preserving existing feature behavior.
+- Improved restoring-access and login visual consistency.
+- Updated the application version to `1.2.1` for release automation.
+
+### Fixed
+- Made disruption reporting controls visible and actionable in the desktop active-journey layout.
+- Avoided showing the restoring-access badge in the header on authentication pages.
+
 ## [v1.2.0] - 2026-05-04
 
 ### Added
