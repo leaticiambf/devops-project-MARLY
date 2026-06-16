@@ -1,21 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
+import { useMutation } from "@tanstack/react-query";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { StatePanel } from "@/components/ui/state-panel";
-import {
-  comfortProfileToForm,
-  defaultComfortForm,
-  directPathOptions,
-  formToComfortProfile,
-  type ComfortFormState,
-} from "@/features/journey/comfort-settings";
 import { usersApi } from "@/lib/api/users";
-import type { NamedComfortSetting, User } from "@/lib/types/api";
+import type { User } from "@/lib/types/api";
 import { useAuth } from "@/providers/auth-provider";
 import { useToast } from "@/providers/toast-provider";
 
@@ -25,16 +18,12 @@ type UserMenuProps = {
 };
 
 export function UserMenu({ user, onLogout }: UserMenuProps) {
-  const queryClient = useQueryClient();
   const { token, refreshUser } = useAuth();
   const { toast } = useToast();
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   const [isOpen, setIsOpen] = useState(false);
   const [homeAddressDraft, setHomeAddressDraft] = useState(user.homeAddress ?? "");
-  const [comfortForm, setComfortForm] = useState<ComfortFormState>(defaultComfortForm);
-  const [editingComfortId, setEditingComfortId] = useState<string | null>(null);
-  const [showComfortForm, setShowComfortForm] = useState(false);
 
   useEffect(() => {
     function handlePointerDown(event: MouseEvent) {
@@ -56,12 +45,6 @@ export function UserMenu({ user, onLogout }: UserMenuProps) {
       document.removeEventListener("keydown", handleEscape);
     };
   }, []);
-
-  const comfortSettingsQuery = useQuery({
-    queryKey: ["comfort-settings", user.userId],
-    queryFn: () => usersApi.listComfortSettings(user.userId, token!),
-    enabled: Boolean(user.userId && token),
-  });
 
   const connectedLabel = useMemo(() => {
     if (user.googleAccountLinked) {
@@ -93,87 +76,12 @@ export function UserMenu({ user, onLogout }: UserMenuProps) {
     },
   });
 
-  const saveComfortSetting = useMutation({
-    mutationFn: async () => {
-      const payload = {
-        name: comfortForm.name.trim(),
-        comfortProfile: formToComfortProfile(comfortForm),
-      };
-
-      if (editingComfortId) {
-        return usersApi.updateComfortSetting(
-          user.userId,
-          editingComfortId,
-          payload,
-          token!,
-        );
-      }
-
-      return usersApi.createComfortSetting(user.userId, payload, token!);
-    },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["comfort-settings"] });
-      setComfortForm(defaultComfortForm);
-      setEditingComfortId(null);
-      setShowComfortForm(false);
-      toast({
-        title: "Comfort preset saved",
-        description: "The planner can now reuse this preference profile.",
-        variant: "success",
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: "Comfort preset failed",
-        description:
-          error instanceof Error ? error.message : "Could not save the preset.",
-        variant: "error",
-      });
-    },
-  });
-
-  const deleteComfortSetting = useMutation({
-    mutationFn: (settingId: string) =>
-      usersApi.deleteComfortSetting(user.userId, settingId, token!),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["comfort-settings"] });
-      setComfortForm(defaultComfortForm);
-      setEditingComfortId(null);
-      setShowComfortForm(false);
-      toast({
-        title: "Comfort preset deleted",
-        description: "The saved preset was removed.",
-        variant: "success",
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: "Delete failed",
-        description:
-          error instanceof Error ? error.message : "Could not delete the preset.",
-        variant: "error",
-      });
-    },
-  });
-
-  function startEditingSetting(setting?: NamedComfortSetting) {
-    setEditingComfortId(setting?.id ?? null);
-    setComfortForm(comfortProfileToForm(setting));
-    setShowComfortForm(true);
-  }
-
-  function clearComfortEditor() {
-    setEditingComfortId(null);
-    setComfortForm(defaultComfortForm);
-    setShowComfortForm(false);
-  }
-
   return (
     <div ref={menuRef} className="relative">
       <button
         type="button"
         onClick={() => setIsOpen((current) => !current)}
-        className="flex min-w-[14rem] items-center justify-between gap-3 rounded-full border border-line bg-surface-strong/90 px-3 py-2 text-left transition hover:border-brand/40 hover:bg-surface"
+        className="flex h-11 w-11 items-center justify-center rounded-full border border-line bg-surface-strong/90 p-1 text-left transition hover:border-brand/40 hover:bg-surface sm:h-auto sm:w-auto sm:min-w-[14rem] sm:justify-between sm:gap-3 sm:px-3 sm:py-2"
       >
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand text-sm font-bold text-white">
@@ -184,36 +92,41 @@ export function UserMenu({ user, onLogout }: UserMenuProps) {
               .slice(0, 2)
               .toUpperCase()}
           </div>
-          <div className="min-w-0">
+          <div className="hidden min-w-0 sm:block">
             <p className="truncate text-sm font-semibold text-foreground">
               {user.displayName}
             </p>
             <p className="truncate text-xs text-secondary">{connectedLabel}</p>
           </div>
         </div>
-        <span className="text-lg leading-none text-secondary">{isOpen ? "−" : "+"}</span>
+        <span className="hidden text-lg leading-none text-secondary sm:inline">
+          {isOpen ? "−" : "+"}
+        </span>
       </button>
 
       {isOpen ? (
-        <div className="absolute right-0 top-full z-50 mt-3 w-[min(28rem,calc(100vw-2rem))] overflow-hidden rounded-[1.75rem] border border-line bg-surface shadow-[0_24px_80px_rgba(0,0,0,0.45)]">
-          <div className="border-b border-line bg-[linear-gradient(135deg,rgba(0,155,72,0.16),rgba(56,189,248,0.08))] px-5 py-5">
+        <div className="fixed inset-x-3 top-16 z-[80] max-h-[calc(100vh-9.5rem)] overflow-hidden rounded-[1.35rem] border border-line bg-surface shadow-[0_24px_80px_rgba(0,0,0,0.45)] sm:absolute sm:inset-auto sm:right-0 sm:top-full sm:mt-3 sm:w-[min(28rem,calc(100vw-2rem))]">
+          <div className="border-b border-line bg-[linear-gradient(135deg,rgba(0,155,72,0.16),rgba(56,189,248,0.08))] px-4 py-4 sm:px-5 sm:py-5">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.24em] text-secondary">
+                <p className="text-[0.65rem] font-bold uppercase tracking-[0.2em] text-secondary sm:text-xs sm:tracking-[0.24em]">
                   Your account
                 </p>
-                <h2 className="mt-2 text-xl font-semibold text-foreground">
+                <h2 className="mt-1 text-lg font-semibold text-foreground sm:mt-2 sm:text-xl">
                   {user.displayName}
                 </h2>
-                <p className="mt-1 text-sm text-secondary">{user.email}</p>
+                <p className="mt-1 break-all text-xs text-secondary sm:text-sm">{user.email}</p>
               </div>
-              <Badge variant={user.googleAccountLinked ? "success" : "muted"}>
+              <Badge
+                variant={user.googleAccountLinked ? "success" : "muted"}
+                className="max-w-[8rem] justify-center px-2 py-0.5 text-center text-[0.58rem] tracking-[0.12em] sm:max-w-none sm:px-3 sm:py-1 sm:text-[0.68rem] sm:tracking-[0.2em]"
+              >
                 {user.googleAccountLinked ? "Google Tasks connected" : "Google Tasks optional"}
               </Badge>
             </div>
           </div>
 
-          <div className="grid max-h-[75vh] gap-5 overflow-y-auto px-5 py-5">
+          <div className="grid max-h-[calc(100vh-15rem)] gap-4 overflow-y-auto px-4 py-4 sm:max-h-[75vh] sm:gap-5 sm:px-5 sm:py-5">
             <section className="grid gap-3">
               <div>
                 <p className="text-sm font-semibold text-foreground">Home address</p>
@@ -248,194 +161,14 @@ export function UserMenu({ user, onLogout }: UserMenuProps) {
               </div>
             </section>
 
-            <section className="grid gap-3 border-t border-line pt-5">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-sm font-semibold text-foreground">Comfort presets</p>
-                  <p className="mt-1 text-sm text-secondary">
-                    Keep route preferences here instead of on the main journey page.
-                  </p>
-                </div>
-                <Button variant="ghost" onClick={() => startEditingSetting()}>
-                  New preset
-                </Button>
-              </div>
-
-              <div className="grid gap-2">
-                {comfortSettingsQuery.isLoading ? (
-                  <StatePanel
-                    title="Loading presets"
-                    description="Your saved travel profiles are on the way."
-                  />
-                ) : comfortSettingsQuery.data?.length ? (
-                  comfortSettingsQuery.data.map((setting) => (
-                    <button
-                      key={setting.id}
-                      type="button"
-                      onClick={() => startEditingSetting(setting)}
-                      className="rounded-2xl border border-line bg-surface-strong px-4 py-3 text-left transition hover:border-brand/30 hover:bg-surface"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="font-semibold text-foreground">{setting.name}</p>
-                        <span className="text-xs uppercase tracking-[0.18em] text-secondary">
-                          Edit
-                        </span>
-                      </div>
-                      <p className="mt-1 text-sm text-secondary">
-                        {setting.comfortProfile.directPath || "Flexible route"} ·{" "}
-                        {setting.comfortProfile.requireAirConditioning
-                          ? "Air conditioning"
-                          : "No AC constraint"}{" "}
-                        ·{" "}
-                        {setting.comfortProfile.maxNbTransfers != null
-                          ? `${setting.comfortProfile.maxNbTransfers} transfer max`
-                          : "Flexible transfers"}
-                      </p>
-                    </button>
-                  ))
-                ) : (
-                  <StatePanel
-                    title="No preset saved yet"
-                    description="Create one profile here and it will appear in the planner selector."
-                  />
-                )}
-              </div>
-
-              {showComfortForm ? (
-                <div className="grid gap-4 rounded-[1.5rem] border border-line bg-surface-strong p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-bold uppercase tracking-[0.24em] text-secondary">
-                        {editingComfortId ? "Edit preset" : "Create preset"}
-                      </p>
-                      <h3 className="mt-1 text-lg font-semibold text-foreground">
-                        {editingComfortId ? "Update comfort preset" : "Create a comfort preset"}
-                      </h3>
-                    </div>
-                    <Button variant="ghost" onClick={clearComfortEditor}>
-                      Close
-                    </Button>
-                  </div>
-
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <Input
-                      label="Preset name"
-                      value={comfortForm.name}
-                      onChange={(event) =>
-                        setComfortForm((current) => ({
-                          ...current,
-                          name: event.target.value,
-                        }))
-                      }
-                      placeholder="Morning commute"
-                    />
-                    <label className="grid gap-2 text-sm font-medium text-secondary">
-                      <span>Direct path preference</span>
-                      <select
-                        value={comfortForm.directPath}
-                        onChange={(event) =>
-                          setComfortForm((current) => ({
-                            ...current,
-                            directPath: event.target.value as ComfortFormState["directPath"],
-                          }))
-                        }
-                        className="rounded-lg border border-line bg-surface px-4 py-3 text-sm text-foreground font-mono outline-none transition focus:border-brand focus:ring-2 focus:ring-brand-soft"
-                      >
-                        {directPathOptions.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <Input
-                      label="Max transfers"
-                      type="number"
-                      min={0}
-                      max={10}
-                      value={comfortForm.maxNbTransfers}
-                      onChange={(event) =>
-                        setComfortForm((current) => ({
-                          ...current,
-                          maxNbTransfers: event.target.value,
-                        }))
-                      }
-                    />
-                    <Input
-                      label="Max waiting (minutes)"
-                      type="number"
-                      min={0}
-                      max={120}
-                      value={comfortForm.maxWaitingDuration}
-                      onChange={(event) =>
-                        setComfortForm((current) => ({
-                          ...current,
-                          maxWaitingDuration: event.target.value,
-                        }))
-                      }
-                    />
-                    <Input
-                      label="Max walking (minutes)"
-                      type="number"
-                      min={0}
-                      max={120}
-                      value={comfortForm.maxWalkingDuration}
-                      onChange={(event) =>
-                        setComfortForm((current) => ({
-                          ...current,
-                          maxWalkingDuration: event.target.value,
-                        }))
-                      }
-                    />
-                    <div className="grid gap-3 rounded-xl border border-line bg-surface px-4 py-3 text-sm text-foreground">
-                      <label className="flex items-center gap-3">
-                        <input
-                          type="checkbox"
-                          checked={comfortForm.requireAirConditioning}
-                          onChange={(event) =>
-                            setComfortForm((current) => ({
-                              ...current,
-                              requireAirConditioning: event.target.checked,
-                            }))
-                          }
-                        />
-                        Require air conditioning
-                      </label>
-                      <label className="flex items-center gap-3">
-                        <input
-                          type="checkbox"
-                          checked={comfortForm.wheelchairAccessible}
-                          onChange={(event) =>
-                            setComfortForm((current) => ({
-                              ...current,
-                              wheelchairAccessible: event.target.checked,
-                            }))
-                          }
-                        />
-                        Wheelchair accessible
-                      </label>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap gap-3">
-                    <Button
-                      onClick={() => saveComfortSetting.mutate()}
-                      disabled={saveComfortSetting.isPending || !comfortForm.name.trim()}
-                    >
-                      {saveComfortSetting.isPending ? "Saving..." : "Save preset"}
-                    </Button>
-                    {editingComfortId ? (
-                      <Button
-                        variant="danger"
-                        onClick={() => deleteComfortSetting.mutate(editingComfortId)}
-                        disabled={deleteComfortSetting.isPending}
-                      >
-                        Delete preset
-                      </Button>
-                    ) : null}
-                  </div>
-                </div>
-              ) : null}
+            <section className="grid gap-3 border-t border-line pt-4">
+              <Link
+                href="/comfort-presets"
+                onClick={() => setIsOpen(false)}
+                className="rounded-2xl border border-line bg-surface-strong px-4 py-3 text-sm font-semibold text-foreground transition hover:border-brand/40 hover:bg-surface"
+              >
+                Manage comfort presets
+              </Link>
             </section>
 
             <section className="border-t border-line pt-5">

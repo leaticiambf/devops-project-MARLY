@@ -78,6 +78,7 @@ type TransportMapProps = {
   mapboxToken: string | null;
   stops?: TransportStop[];
   segments?: TransportSegment[];
+  showDemoRoute?: boolean;
   /** Texte d’adresse ou lieu d’arrivée (ex. saisi au planificateur) : affiché comme un point distinct sur la carte. */
   arrivalAddressQuery?: string | null;
   tasks?: Array<{
@@ -146,6 +147,7 @@ export function TransportMap({
   mapboxToken,
   stops: providedStops,
   segments: providedSegments,
+  showDemoRoute = true,
   arrivalAddressQuery = null,
   tasks,
   onRequestReroute,
@@ -199,10 +201,13 @@ export function TransportMap({
     ? resolvedArrivalAddressCoordinates
     : null;
 
-  const stops = useMemo(() => providedStops ?? DEMO_STOPS, [providedStops]);
+  const stops = useMemo(
+    () => providedStops ?? (showDemoRoute ? DEMO_STOPS : []),
+    [providedStops, showDemoRoute],
+  );
   const segments = useMemo(
-    () => providedSegments ?? DEMO_SEGMENTS,
-    [providedSegments],
+    () => providedSegments ?? (showDemoRoute ? DEMO_SEGMENTS : []),
+    [providedSegments, showDemoRoute],
   );
   const bounds = useMemo(() => {
     const coordinates = buildBoundsCoordinates(stops, segments);

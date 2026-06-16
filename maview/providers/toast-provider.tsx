@@ -43,12 +43,12 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <div className="pointer-events-none fixed bottom-6 right-6 z-50 flex w-full max-w-sm flex-col gap-3">
+      <div className="pointer-events-none fixed inset-x-3 bottom-[calc(5.75rem+env(safe-area-inset-bottom))] z-[70] flex flex-col gap-3 sm:inset-x-auto sm:bottom-6 sm:right-6 sm:w-full sm:max-w-sm">
         {items.map((item) => (
           <div
             key={item.id}
             className={cn(
-              "pointer-events-auto rounded-lg p-4 shadow-[0_4px_24px_rgba(0,0,0,0.4)]",
+              "pointer-events-auto max-w-full rounded-lg p-3 shadow-[0_4px_24px_rgba(0,0,0,0.4)] sm:p-4",
               variantStyles[item.variant],
             )}
           >

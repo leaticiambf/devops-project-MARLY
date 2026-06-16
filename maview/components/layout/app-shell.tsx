@@ -25,12 +25,6 @@ const mobileFeatureItems = [
     icon: "J",
   },
   {
-    href: "/transport-map",
-    label: "Map",
-    description: "Carte et lignes en direct",
-    icon: "M",
-  },
-  {
     href: "/explore",
     label: "Explore",
     description: "Restaurants et lieux proches",
@@ -47,6 +41,12 @@ const mobileFeatureItems = [
     label: "Eco",
     description: "Badges et progression",
     icon: "C",
+  },
+  {
+    href: "/comfort-presets",
+    label: "Comfort",
+    description: "Preferences trajet",
+    icon: "P",
   },
 ];
 
@@ -69,16 +69,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       )}
     >
       <header className="sticky top-0 z-40 border-b border-line/70 bg-background/90 backdrop-blur-xl">
-        <div className="shell-grid py-3 lg:py-4">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="shell-grid py-2 lg:py-4">
+          <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-4">
               <Link href="/" className="flex items-center gap-3">
-                <LogoMark className="h-11 w-11 p-1.5" />
+                <LogoMark className="h-9 w-9 p-1.5 lg:h-11 lg:w-11" />
                 <div>
                   <p className="text-[0.65rem] font-bold uppercase tracking-[0.22em] text-secondary lg:text-xs lg:tracking-[0.28em]">
                     Paris Transit
                   </p>
-                  <p className="text-base font-bold tracking-tight text-foreground">
+                  <p className="text-sm font-bold tracking-tight text-foreground lg:text-base">
                     MAVIGO
                   </p>
                 </div>
@@ -130,49 +130,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      <main className={cn("shell-grid", isAuthenticated && !isRestoring ? "mt-5 lg:mt-8" : "mt-4 lg:mt-5")}>
-        {isAuthenticated && !isRestoring ? (
-          <section className="mb-5 grid gap-3 lg:hidden">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.24em] text-secondary">
-                  Quick access
-                </p>
-                <h1 className="mt-1 text-xl font-bold text-foreground">
-                  What do you need?
-                </h1>
-              </div>
-              <Badge variant="accent">Mobile</Badge>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              {mobileFeatureItems.map((item) => {
-                const active = pathname === item.href;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={cn(
-                      "min-h-[104px] rounded-2xl border border-line bg-surface/80 p-4 transition",
-                      active
-                        ? "border-brand/60 bg-brand-soft"
-                        : "hover:border-brand/50 hover:bg-surface-strong",
-                    )}
-                  >
-                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-surface-strong text-sm font-black text-accent">
-                      {item.icon}
-                    </span>
-                    <span className="mt-3 block text-base font-bold text-foreground">
-                      {item.label}
-                    </span>
-                    <span className="mt-1 block text-xs leading-5 text-secondary">
-                      {item.description}
-                    </span>
-                  </Link>
-                );
-              })}
-            </div>
-          </section>
-        ) : null}
+      <main className={cn("shell-grid", isAuthenticated && !isRestoring ? "mt-4 lg:mt-8" : "mt-4 lg:mt-5")}>
         {children}
       </main>
 

@@ -9,16 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Live map display on the Journey page before a journey is planned.
-- Mobile/tablet live map section for users without an active journey.
+- Dedicated mobile `Comfort Presets` page for creating, editing, and deleting saved route preferences.
 - Mavigo logo component reused across the app shell and authentication screens.
-- Mobile quick access cards and bottom navigation for the main features.
+- Mobile bottom navigation for Journey, Explore, Tasks, Eco Score, and Comfort Presets.
 
 ### Changed
 - Polished the responsive Journey workspace while preserving existing feature behavior.
+- Compacted the mobile header, active journey controls, trip options, Eco Score cards, and badge collection.
+- Moved comfort preset editing out of the account popover and into a dedicated mobile-friendly page.
+- Kept toast notifications within the phone viewport above the bottom navigation.
 - Improved restoring-access and login visual consistency.
 - Updated the application version to `1.2.1` for release automation.
 
 ### Fixed
+- Prevented the map from displaying demo itinerary segments when no journey is planned.
+- Restored the mobile initials account menu by simplifying the floating panel and raising its stacking layer.
 - Made disruption reporting controls visible and actionable in the desktop active-journey layout.
 - Avoided showing the restoring-access badge in the header on authentication pages.
 
