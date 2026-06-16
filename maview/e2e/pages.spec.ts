@@ -14,7 +14,7 @@ test("loads the tasks and eco pages for an authenticated user", async ({ page })
 
   await page.goto("/eco-score");
   await expect(
-    page.getByRole("heading", { name: "See the impact of every better trip" }),
+    page.getByRole("heading", { level: 1, name: "Eco score" }),
   ).toBeVisible();
   await expect(page.getByText("Green Starter").first()).toBeVisible();
 });
