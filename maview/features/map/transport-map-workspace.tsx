@@ -23,7 +23,7 @@ export function TransportMapWorkspace({ mapboxToken }: TransportMapWorkspaceProp
         </p>
 
         <div className="mt-8">
-          <TransportMap mapboxToken={mapboxToken} />
+          <TransportMap mapboxToken={mapboxToken} showDemoRoute={false} />
         </div>
       </Card>
     </section>

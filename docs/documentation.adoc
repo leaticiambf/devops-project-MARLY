@@ -2119,22 +2119,24 @@ The frontend now lives in the separate `maview/` Next.js application and is serv
 The active frontend codebase is organized under `maview/`:
 
 ==== App Router (`maview/app/`)
-* Route entries for journey planning, tasks, eco score, authentication, and Google popup completion states
+* Route entries for journey planning, tasks, eco score, comfort presets, authentication, and Google popup completion states
 * Route metadata and page composition for the user-facing application
 
 ==== Feature Modules (`maview/features/`)
 * **journey/** — Journey planning, current journey state, disruptions, comfort preferences, and smart suggestions
+* **comfort-presets/** — Mobile-friendly management of named comfort profiles used by the planner
 * **tasks/** — Google Tasks linking, list loading, completion, deletion, and route-aware suggestions
 * **eco-score/** — Eco dashboard, badge display, and score history
+* **map/** — Standalone transport map surface without demo itinerary rendering when no journey is active
 
 ==== Shared UI and State (`maview/components/`, `maview/providers/`, `maview/lib/`)
 * Auth/session restoration and logout
 * Typed API wrappers and environment-aware frontend/backend routing
-* Reusable cards, buttons, state panels, toasts, and layout primitives
+* Reusable cards, buttons, state panels, mobile-safe toasts, and layout primitives
 
 === Route Ownership
 
-The browser targets the frontend origin only. User-facing routes such as `/`, `/tasks`, `/login`, and `/eco-score` are owned by the Next.js application, while the backend exposes API, OAuth callback, health, and logout endpoints.
+The browser targets the frontend origin only. User-facing routes such as `/`, `/tasks`, `/comfort-presets`, `/login`, and `/eco-score` are owned by the Next.js application, while the backend exposes API, OAuth callback, health, and logout endpoints.
 
 == Installation Guide
 
